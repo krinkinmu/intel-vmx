@@ -7,11 +7,11 @@ CFLAGS := -g -m64 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -ffreestanding \
 	-Wframe-larger-than=1024 -Wstack-usage=1024 -Wno-unknown-warning-option
 LFLAGS := -nostdlib -z max-page-size=0x1000
 
-SRC := main.c
+SRC := src/main.c src/uart8250.c
 OBJ := $(SRC:.c=.o)
 DEP := $(SRC:.c=.d)
 
-ASM := bootstrap.S
+ASM := src/bootstrap.S
 AOBJ:= $(ASM:.S=.o)
 ADEP:= $(ASM:.S=.d)
 
@@ -56,15 +56,15 @@ libacpica.a: $(ACPICA_OBJECTS)
 	$(AR) rcs $@ $(ACPICA_OBJECTS)
 
 $(ACPICA_OBJECTS): %.o: %.c $(ACPICA_HEADERS)
-	$(CC) -D__VMX__ -DACPI_LIBRARY -isystem $(ACPICA_INCLUDE) $(CFLAGS) \
-		-Wno-format -Wno-unused-parameter -Wno-format-pedantic \
-		-c $< -o $@
+	$(CC) -D__VMX__ -DACPI_LIBRARY -Iinc -isystem $(ACPICA_INCLUDE) \
+		$(CFLAGS) -Wno-format -Wno-unused-parameter \
+		-Wno-format-pedantic -c $< -o $@
 
-%.o: %.S
+$(AOBJ): %.o: %.S
 	$(CC) -D__ASM_FILE__ -g -MMD -c $< -o $@
 
-%.o: %.c
-	$(CC) -isystem $(ACPICA_INCLUDE) $(CFLAGS) -MMD -c $< -o $@
+$(OBJ): %.o: %.c
+	$(CC) -Iinc -isystem $(ACPICA_INCLUDE) $(CFLAGS) -MMD -c $< -o $@
 
 -include $(DEP)
 -include $(ADEP)
