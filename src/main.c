@@ -1,6 +1,6 @@
 #include <acpi.h>
 #include <uart8250.h>
-
+#include <print.h>
 
 static void acpi_early_init(void)
 {
@@ -12,7 +12,7 @@ static void acpi_early_init(void)
 void main(void)
 {
 	uart8250_setup();
-	uart8250_write("Hello", sizeof("Hello") - 1);
+	printf("Hello from %d bit bare metal %s\n", 64, "application");
 	acpi_early_init();
 	while (1);
 }

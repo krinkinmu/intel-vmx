@@ -7,7 +7,7 @@ CFLAGS := -g -m64 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -ffreestanding \
 	-Wframe-larger-than=1024 -Wstack-usage=1024 -Wno-unknown-warning-option
 LFLAGS := -nostdlib -z max-page-size=0x1000
 
-SRC := src/main.c src/uart8250.c
+SRC := src/main.c src/uart8250.c src/print.c
 OBJ := $(SRC:.c=.o)
 DEP := $(SRC:.c=.d)
 
