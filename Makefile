@@ -19,7 +19,7 @@ ADEP:= $(ASM:.S=.d)
 ACPICA_SRC		:= acpica/source
 ACPICA_OSL		:= $(ACPICA_SRC)/os_specific/service_layers
 ACPICA_CORE		:= $(ACPICA_SRC)/components
-ACPICA_INCLUDE		:= $(ACPICA_SRC)/include
+ACPICA_INC		:= $(ACPICA_SRC)/include
 ACPICA_DISPATCHER	:= $(ACPICA_CORE)/dispatcher
 ACPICA_EVENTS		:= $(ACPICA_CORE)/events
 ACPICA_EXECUTER		:= $(ACPICA_CORE)/executer
@@ -31,8 +31,8 @@ ACPICA_TABLES		:= $(ACPICA_CORE)/tables
 ACPICA_UTILITIES	:= $(ACPICA_CORE)/utilities
 
 ACPICA_HEADERS		:= \
-	$(wildcard $(ACPICA_INCLUDE)/*.h) \
-	$(wildcard $(ACPICA_INCLUDE)/platfrom/*.h)
+	$(wildcard $(ACPICA_INC)/*.h) \
+	$(wildcard $(ACPICA_INC)/platfrom/*.h)
 
 ACPICA_SOURCES		:= \
 	$(wildcard $(ACPICA_DISPATCHER)/*.c) \
@@ -47,28 +47,44 @@ ACPICA_SOURCES		:= \
 	$(ACPICA_OSL)/osvmx.c
 ACPICA_OBJECTS		:= $(ACPICA_SOURCES:.c=.o)
 
+# libc related defenitions, need to move them in a separate file
+LIBC_SRC		:= libc/src
+LIBC_INC		:= libc/inc
+LIBC_HEADERS		:= $(wildcard $(LIBC_INC)/*.h)
+LIBC_SOURCES		:= $(wildcard $(LIBC_SRC)/*.c)
+LIBC_OBJECTS		:= $(LIBC_SOURCES:.c=.o)
+
 all: kernel
 
-kernel: $(AOBJ) $(OBJ) libacpica.a kernel.ld
-	$(LD) $(LFLAGS) -T kernel.ld -o $@ $(AOBJ) $(OBJ) -L. -lacpica
+kernel: $(AOBJ) $(OBJ) libacpica.a libc.a kernel.ld
+	$(LD) $(LFLAGS) -T kernel.ld -o $@ $(AOBJ) $(OBJ) -L. -lacpica -lc
 
 libacpica.a: $(ACPICA_OBJECTS)
 	$(AR) rcs $@ $(ACPICA_OBJECTS)
 
-$(ACPICA_OBJECTS): %.o: %.c $(ACPICA_HEADERS)
-	$(CC) -D__VMX__ -DACPI_LIBRARY -Iinc -isystem $(ACPICA_INCLUDE) \
+libc.a: $(LIBC_OBJECTS)
+	$(AR) rcs $@ $(LIBC_OBJECTS)
+
+$(ACPICA_OBJECTS): %.o: %.c $(ACPICA_HEADERS) $(LIBC_HEADERS)
+	$(CC) -D__VMX__ -DACPI_LIBRARY -Iinc -I$(LIBC_INC) \
+		-isystem $(ACPICA_INC) \
 		$(CFLAGS) -Wno-format -Wno-unused-parameter \
 		-Wno-format-pedantic -c $< -o $@
+
+$(LIBC_OBJECTS): %.o: %.c $(LIBC_HEADERS)
+	$(CC) -I$(LIBC_INC) $(CFLAGS) -c $< -o $@
 
 $(AOBJ): %.o: %.S
 	$(CC) -D__ASM_FILE__ -g -MMD -c $< -o $@
 
 $(OBJ): %.o: %.c
-	$(CC) -Iinc -isystem $(ACPICA_INCLUDE) $(CFLAGS) -MMD -c $< -o $@
+	$(CC) -Iinc -I$(LIBC_INC) -isystem $(ACPICA_INC) \
+		$(CFLAGS) -MMD -c $< -o $@
 
 -include $(DEP)
 -include $(ADEP)
 
 .PHONY: clean
 clean:
-	rm -f kernel $(AOBJ) $(OBJ) $(DEP) $(ADEP) $(ACPICA_OBJECTS) libacpica.a
+	rm -f kernel $(AOBJ) $(OBJ) $(DEP) $(ADEP) $(ACPICA_OBJECTS) \
+		$(LIBC_OBJECTS) libacpica.a libc.a

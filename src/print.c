@@ -1,4 +1,5 @@
 #include <print.h>
+#include <string.h>
 #include <uart8250.h>
 
 static const char *digits = "0123456789abcdefghijklmnopqrstuvwxyz";
@@ -30,16 +31,6 @@ static void itoa(int value, char *buf, int base)
 		*start = c;
 		start++;
 	}
-}
-
-static int strlen(const char *str)
-{
-	const char *begin = str;
-
-	while (*str)
-		str++;
-
-	return str - begin;
 }
 
 static int print(struct print_ctx *ctx, const char *buf, int size)
@@ -179,11 +170,7 @@ static int str_out(struct print_ctx *ctx, const char *buf, int size)
 
 	const int remain = size < sctx->size - ctx->written
 			? size : sctx->size - ctx->written;
-	char *ptr = sctx->buf + ctx->written;
-
-	/* TODO: memcpy */
-	for (int i = 0; i != remain; ++i)
-		*ptr++ = *buf++;
+	memcpy(sctx->buf + ctx->written, buf, remain);
 
 	return 0;
 }

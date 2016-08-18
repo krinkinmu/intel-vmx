@@ -1,0 +1,55 @@
+#include <stdlib.h>
+#include <limits.h>
+#include <ctype.h>
+
+unsigned long strtoul(const char *str, char **endptr, int base)
+{
+	const char *ptr = str;
+	unsigned long ret = 0;
+	int negate = 0, consumed = 0;
+
+	while (isspace(*ptr))
+		++ptr;
+
+	if (*ptr == '-' || *ptr == '+') {
+		negate = *ptr == '-';
+		++ptr;
+	}
+
+	if (!base) {
+		base = 10;
+		if (*ptr == '0') {
+			base = 8;
+			if (tolower(*(++ptr)) == 'x') {
+				base = 16;
+				++ptr;
+			}
+		}
+	} else {
+		if (base == 8 && *ptr == '0')
+			++ptr;
+		if (base == 16 && *ptr == '0' && tolower(*(ptr + 1) == 'x'))
+			ptr += 2;
+	}
+
+	while (*ptr) {
+		const char c = toupper(*ptr);
+		const int digit = isdigit(c) ? c - '0' : c - 'A' + 10;
+
+		if (ret > (ULONG_MAX - digit) / base) {
+			ret = ULONG_MAX;
+			break;
+		}
+		ret = ret * base + digit;
+		consumed = 1;
+		++ptr;
+	}
+
+	if (endptr)
+		*endptr = (char *)(consumed ? ptr : str);
+
+	if (negate)
+		ret = -ret;
+
+	return ret;
+}
