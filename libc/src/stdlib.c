@@ -53,3 +53,35 @@ unsigned long strtoul(const char *str, char **endptr, int base)
 
 	return ret;
 }
+
+char *itoa(int value, char *str, int base)
+{
+	static const char *digits = "0123456789abscdefghijklmnopqrstuvwxyz";
+	char *ptr = str;
+
+	if (value < 0) {
+		*ptr++ = '-';
+		value = -value;
+	}
+
+	char *start = ptr;
+
+	do {
+		const int r = value % base;
+
+		value = value / base;
+		*ptr++ = digits[r];
+	} while (value);
+
+	*ptr-- = '\0';
+
+	while (start < ptr) {
+		const char c = *ptr;
+
+		*ptr = *start;
+		*start = c;
+		++start;
+	}
+
+	return str;
+}

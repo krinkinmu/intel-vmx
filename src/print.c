@@ -1,37 +1,8 @@
 #include <print.h>
 #include <string.h>
+#include <stdlib.h>
 #include <uart8250.h>
 
-static const char *digits = "0123456789abcdefghijklmnopqrstuvwxyz";
-
-static void itoa(int value, char *buf, int base)
-{
-	if (value < 0) {
-		*buf++ = '-';
-		value = -value;
-	}
-
-	char *start = buf;
-
-	while (value) {
-		const int r = value % base;
-
-		value = value / base;
-		*buf++ = digits[r]; 
-	}
-
-	if (start == buf)
-		*buf++ = '0';
-
-	buf--;
-	while (start < buf) {
-		const char c = *buf;
-
-		*buf = *start;
-		*start = c;
-		start++;
-	}
-}
 
 static int print(struct print_ctx *ctx, const char *buf, int size)
 {
