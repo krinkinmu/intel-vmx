@@ -7,19 +7,22 @@ CFLAGS := -g -m64 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -ffreestanding \
 	-Wframe-larger-than=1024 -Wstack-usage=1024 -Wno-unknown-warning-option
 LFLAGS := -nostdlib -z max-page-size=0x1000
 
-SRC := src/main.c src/uart8250.c src/print.c
-OBJ := $(SRC:.c=.o)
-DEP := $(SRC:.c=.d)
-
-ASM := src/bootstrap.S
-AOBJ:= $(ASM:.S=.o)
-ADEP:= $(ASM:.S=.d)
+KERNEL_SRC		:= kernel/src
+KERNEL_INC		:= kernel/inc
+KERNEL_SOURCES		:= $(wildcard $(KERNEL_SRC)/*.c)
+KERNEL_C_OBJ		:= $(KERNEL_SOURCES:.c=.o)
+KERNEL_C_DEP		:= $(KERNEL_SOURCES:.c=.d)
+KERNEL_ASM		:= $(wildcard $(KERNEL_SRC)/*.S)
+KERNEL_ASM_OBJ		:= $(KERNEL_ASM:.S=.o)
+KERNEL_ASM_DEP		:= $(KERNEL_ASM:.S=.d)
+KERNEL_OBJ		:= $(KERNEL_C_OBJ) $(KERNEL_ASM_OBJ)
+KERNEL_DEP		+= $(KERNEL_C_DEP) $(KERNEL_ASM_DEP)
 
 # ACPICA related defenitions, need to move them in a separate file
 ACPICA_SRC		:= acpica/source
+ACPICA_INC		:= $(ACPICA_SRC)/include
 ACPICA_OSL		:= $(ACPICA_SRC)/os_specific/service_layers
 ACPICA_CORE		:= $(ACPICA_SRC)/components
-ACPICA_INC		:= $(ACPICA_SRC)/include
 ACPICA_DISPATCHER	:= $(ACPICA_CORE)/dispatcher
 ACPICA_EVENTS		:= $(ACPICA_CORE)/events
 ACPICA_EXECUTER		:= $(ACPICA_CORE)/executer
@@ -51,10 +54,10 @@ LIBC_SOURCES		:= $(wildcard $(LIBC_SRC)/*.c)
 LIBC_OBJ		:= $(LIBC_SOURCES:.c=.o)
 LIBC_DEP		:= $(LIBC_SOURCES:.c=.d)
 
-all: kernel
+all: kernel/kernel
 
-kernel: $(AOBJ) $(OBJ) libacpica.a libc.a kernel.ld
-	$(LD) $(LFLAGS) -T kernel.ld -o $@ $(AOBJ) $(OBJ) -L. -lacpica -lc
+kernel/kernel: $(KERNEL_OBJ) libacpica.a libc.a kernel/kernel.ld
+	$(LD) $(LFLAGS) -T kernel/kernel.ld -o $@ $(KERNEL_OBJ) -L. -lacpica -lc
 
 libacpica.a: $(ACPICA_OBJ)
 	$(AR) rcs $@ $(ACPICA_OBJ)
@@ -63,7 +66,7 @@ libc.a: $(LIBC_OBJ)
 	$(AR) rcs $@ $(LIBC_OBJ)
 
 $(ACPICA_OBJ): %.o: %.c
-	$(CC) -D__VMX__ -DACPI_LIBRARY -Iinc -I$(LIBC_INC) \
+	$(CC) -D__VMX__ -DACPI_LIBRARY -I$(KERNEL_INC) -I$(LIBC_INC) \
 		-isystem $(ACPICA_INC) \
 		$(CFLAGS) -Wno-format -Wno-unused-parameter \
 		-Wno-format-pedantic -MD -c $< -o $@
@@ -71,11 +74,11 @@ $(ACPICA_OBJ): %.o: %.c
 $(LIBC_OBJ): %.o: %.c
 	$(CC) -I$(LIBC_INC) $(CFLAGS) -MD -c $< -o $@
 
-$(AOBJ): %.o: %.S
+$(KERNEL_ASM_OBJ): %.o: %.S
 	$(CC) -D__ASM_FILE__ -g -MD -c $< -o $@
 
-$(OBJ): %.o: %.c
-	$(CC) -Iinc -I$(LIBC_INC) -isystem $(ACPICA_INC) \
+$(KERNEL_C_OBJ): %.o: %.c
+	$(CC) -I$(KERNEL_INC) -I$(LIBC_INC) -isystem $(ACPICA_INC) \
 		$(CFLAGS) -MD -c $< -o $@
 
 -include $(DEP)
@@ -85,5 +88,5 @@ $(OBJ): %.o: %.c
 
 .PHONY: clean
 clean:
-	rm -f kernel $(AOBJ) $(OBJ) $(DEP) $(ADEP) $(ACPICA_OBJ) \
+	rm -f kernel/kernel $(KERNEL_OBJ) $(KERNEL_DEP) $(ACPICA_OBJ) \
 		$(ACPICA_DEP) $(LIBC_OBJ) $(LIBC_DEP) libacpica.a libc.a

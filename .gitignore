@@ -2,4 +2,4 @@
 *.d
 *.a
 *.swp
-kernel
+kernel/kernel
