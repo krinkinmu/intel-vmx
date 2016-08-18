@@ -14,37 +14,6 @@ int memcmp(const void *l, const void *r, size_t size)
 	return 0;
 }
 
-void *memcpy(void *dst, const void *src, size_t size)
-{
-	const char *ptr2 = src;
-	char *ptr1 = dst;
-
-	while (size--)
-		*ptr1++ = *ptr2++;
-
-	return dst;
-}
-
-void *memset(void *dst, int value, size_t size)
-{
-	char *ptr = dst;
-
-	while (size--)
-		*ptr++ = value;
-
-	return dst;
-}
-
-size_t strlen(const char *str)
-{
-	const char *ptr = str;
-
-	while (*ptr)
-		++ptr;
-
-	return ptr - str;
-}
-
 char *strcpy(char *dst, const char *src)
 {
 	char *ptr = dst;
