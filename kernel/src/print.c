@@ -1,6 +1,7 @@
 #include <print.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <uart8250.h>
 
 
@@ -21,13 +22,23 @@ enum format_type {
 	FMT_STR,
 	FMT_CHAR,
 	FMT_INT,
-	FMT_PERCENT
+	FMT_PERCENT,
+};
+
+enum fromat_spec {
+	FMT_SSHORT = (1 << 8),
+	FMT_SHORT = (1 << 9),
+	FMT_LONG = (1 << 10),
+	FMT_LLONG = (1 << 11),
+	FMT_UNSIGNED = (1 << 12),
+	FMT_HEX = (1 << 13)
 };
 
 static int decode_format(const char **fmt_ptr)
 {
 	const char *fmt = *fmt_ptr;
 	int type = FMT_INVALID;
+	int spec = 0;
 
 	while (*fmt) {
 		if (*fmt == '%' && type != FMT_INVALID)
@@ -40,8 +51,47 @@ static int decode_format(const char **fmt_ptr)
 			continue;
 		}
 
+		switch (*fmt) {
+		case '-': case '+': case ' ': case '#': case '0':
+			++fmt;
+			break;
+		}
+
+		while (*fmt && isdigit(*fmt))
+			++fmt;
+
+		if (*fmt == '.') {
+			++fmt;
+			while (*fmt && isdigit(*fmt))
+				++fmt;
+		}
+
+		if (*fmt == 'l') {
+			++fmt;
+			if (*fmt == 'l') {
+				spec = FMT_LLONG;
+				++fmt;
+			} else {
+				spec = FMT_LONG;
+			}
+		} else if (*fmt == 'h') {
+			++fmt;
+			if (*fmt == 'h') {
+				spec = FMT_SSHORT;
+				++fmt;
+			} else {
+				spec = FMT_SHORT;
+			}
+		}
+
 		switch (*fmt++) {
-		case 'd':
+		case 'p':
+			spec |= FMT_LONG;
+		case 'x': case 'X':
+			spec |= FMT_HEX;
+		case 'u':
+			spec |= FMT_UNSIGNED;
+		case 'd': case 'i':
 			type = FMT_INT;
 			break;
 		case 's':
@@ -58,12 +108,41 @@ static int decode_format(const char **fmt_ptr)
 	}
 	*fmt_ptr = fmt;
 
-	return type;
+	return type | spec;
+}
+
+static int print_number(struct print_ctx *ctx, va_list args, int type)
+{
+	const int base = type & FMT_HEX ? 16 : 10;
+	char buf[64];
+
+	if (type & FMT_UNSIGNED) {
+		unsigned long long value;
+
+		if (type & FMT_LONG)
+			value = va_arg(args, unsigned long);
+		else if (type & FMT_LLONG)
+			value = va_arg(args, unsigned long long);
+		else
+			value = va_arg(args, unsigned);
+		ulltoa(value, buf, base);
+	} else {
+		long long value;
+
+		if (type & FMT_LONG)
+			value = va_arg(args, long);
+		else if (type & FMT_LLONG)
+			value = va_arg(args, long long);
+		else
+			value = va_arg(args, int);
+		lltoa(value, buf, base);
+	}
+
+	return print(ctx, buf, strlen(buf));
 }
 
 int __vprintf(struct print_ctx *ctx, const char *fmt, va_list args)
 {
-	char fmt_buf[64];
 	int rc = 0;
 
 	ctx->written = 0;
@@ -72,7 +151,7 @@ int __vprintf(struct print_ctx *ctx, const char *fmt, va_list args)
 		const char *start = fmt;
 		const int type = decode_format(&fmt);
 
-		switch (type) {
+		switch (type & 0xff) {
 		case FMT_STR: {
 			const char *str = va_arg(args, const char *);
 
@@ -85,13 +164,9 @@ int __vprintf(struct print_ctx *ctx, const char *fmt, va_list args)
 			rc = print(ctx, &c, 1);
 			break;
 		}
-		case FMT_INT: {
-			const int value = va_arg(args, int);
-
-			itoa(value, fmt_buf, 10);
-			rc = print(ctx, fmt_buf, strlen(fmt_buf));
+		case FMT_INT:
+			rc = print_number(ctx, args, type);
 			break;
-		}
 		case FMT_NONE:
 			rc = print(ctx, start, fmt - start);
 			break;
