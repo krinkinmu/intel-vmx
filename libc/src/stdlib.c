@@ -54,17 +54,11 @@ unsigned long strtoul(const char *str, char **endptr, int base)
 	return ret;
 }
 
-char *itoa(int value, char *str, int base)
+char *ulltoa(unsigned long long value, char *str, int base)
 {
-	static const char *digits = "0123456789abscdefghijklmnopqrstuvwxyz";
+	static const char *digits = "0123456789abcdefghijklmnopqrstuvwxyz";
 	char *ptr = str;
-
-	if (value < 0) {
-		*ptr++ = '-';
-		value = -value;
-	}
-
-	char *start = ptr;
+	char *start = str;
 
 	do {
 		const int r = value % base;
@@ -78,10 +72,43 @@ char *itoa(int value, char *str, int base)
 	while (start < ptr) {
 		const char c = *ptr;
 
-		*ptr = *start;
-		*start = c;
-		++start;
+		*ptr-- = *start;
+		*start++ = c;
 	}
 
 	return str;
+}
+
+char *lltoa(long long value, char *str, int base)
+{
+	char *ptr = str;
+
+	if (value < 0) {
+		*ptr++ = '-';
+		value = -value;
+	}
+
+	ulltoa(value, ptr, base);
+
+	return str;
+}
+
+char *ultoa(unsigned long value, char *str, int base)
+{
+	return ulltoa(value, str, base);
+}
+
+char *ltoa(long value, char *str, int base)
+{
+	return lltoa(value, str, base);
+}
+
+char *utoa(unsigned value, char *str, int base)
+{
+	return ulltoa(value, str, base);
+}
+
+char *itoa(int value, char *str, int base)
+{
+	return lltoa(value, str, base);
 }
