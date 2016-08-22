@@ -12,7 +12,7 @@
 
 #define BUG_ON(cond) \
 	if (cond) { \
-		BUG("\"#cond\"\n"); \
+		BUG("\""#cond"\"\n"); \
 	}
 
 #endif /*__DEBUG_H__*/
