@@ -32,6 +32,9 @@ gdt_ptr:
 	.quad gdt
 
 1:
+	/* Save pointer to multiboot info structure */
+	movl %ebx, %esi
+
 	/* Create identity mapping for lower 512GB using 1GB pages:
 	 *  - pml3 table contains 512 entries by 8 bytes each
 	 *  - pml3 entry points to 1GB physical page
@@ -97,6 +100,9 @@ start64:
 
 	movabsq $stack_top, %rax
 	movq %rax, %rsp
+
+	xorq %rdi, %rdi
+	movl %esi, %edi
 
 	cld
 	movabsq $main, %rax
