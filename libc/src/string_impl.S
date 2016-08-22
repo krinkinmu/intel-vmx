@@ -1,4 +1,4 @@
-	.text
+	.code64
 	.global memcpy
 memcpy:
 	movq	%rdi, %rax
@@ -40,6 +40,8 @@ out2:	movq	%rcx, %rax
 strlen:
 	movq	%rdi, %rsi
 	xorq	%rax, %rax
+	xorq	%rcx, %rcx
+	notq	%rcx
 	repne
 	scasb
 	subq	%rsi, %rdi
