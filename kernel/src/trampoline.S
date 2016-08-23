@@ -32,12 +32,31 @@ tr_begin:
 	orl $(CR0_PG | CR0_PM), %eax
 	movl %eax, %cr0
 
+	ljmpl $0x08, $start64
+
+	.code64
+start64:
+	movw $0x10, %ax
+	movw %ax, %ds
+	movw %ax, %es
+	movw %ax, %fs
+	movw %ax, %gs
+	movw %ax, %ss	
+
+	xorq %rax, %rax
 	movl stackend - tr_base, %eax
-	movl %eax, %esp
+	movq %rax, %rsp
 
-	ljmpl *(startup - tr_base)
-1:	jmp 1b
+	cld
+	movl startup - tr_base, %eax
+	call *%rax
 
+	cli
+1:
+	hlt
+	jmp 1b
+
+	.align 4
 	.long 0x13131313
 pgtable:
 	.long 0x0
@@ -45,7 +64,6 @@ stackend:
 	.long 0x0
 startup:
 	.long 0x0
-	.word 0x0
 tr_gdt:
 	.word 0x0
 	.long 0x0
