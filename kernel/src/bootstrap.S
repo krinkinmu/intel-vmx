@@ -29,7 +29,7 @@ gdt:
 	.quad 0x00a0920000000000
 gdt_ptr:
 	.word (gdt_ptr - gdt - 1)
-	.quad gdt
+	.long gdt
 
 1:
 	/* Save pointer to multiboot info structure */
@@ -86,7 +86,7 @@ gdt_ptr:
 
 	/* Enable 64bit gdt */
 	lgdt gdt_ptr
-	ljmp $0x08, $start64
+	ljmpl $0x08, $start64
 
 	.code64
 start64:
