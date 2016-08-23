@@ -17,7 +17,8 @@ static struct io_apic ioapics[MAX_IO_APICS];
 static int ioapics_size;
 
 static uintptr_t local_apic_phys;
-static int local_apics;
+int local_apic_ids[MAX_LOCAL_APICS];
+int local_apics;
 
 
 struct acpi_madt {
@@ -87,8 +88,9 @@ static void apic_enumerate_acpi(void)
 			if ((local->flags & 1) == 0)
 				break;
 
-			if (local_apics < MAX_LOCAL_APICS)
-				++local_apics;
+			if (local_apics == MAX_LOCAL_APICS)
+				break;
+			local_apic_ids[local_apics++] = local->local_apic_id;
 			break;
 		}
 		case 1: {
@@ -164,29 +166,41 @@ static void ioapic_setup(struct io_apic *apic)
 		ioapic_write(apic, 0x10 + i, 1ul << 16);
 }
 
-static void lapic_write(int reg, unsigned long val)
+void local_apic_write(int reg, unsigned long val)
 {
 	volatile uint32_t *base = (volatile uint32_t *)local_apic_phys;
 
 	*(base + reg) = val;
 }
 
-/*
-static unsigned long lapic_read(int reg)
+unsigned long local_apic_read(int reg)
 {
 	volatile uint32_t *base = (volatile uint32_t *)local_apic_phys;
 
 	return *(base + reg);
 }
-*/
+
+int local_apic_id(void)
+{
+	const unsigned long apic_id = local_apic_read(0x20);
+
+	return (apic_id >> 24) & 0xff;
+}
+
+int local_apic_version(void)
+{
+	const unsigned long apic_version = local_apic_read(0x30);
+
+	return apic_version & 0xff;
+}
 
 static void lapic_setup(void)
 {
 	static int next_apic_id;
 	const unsigned long apic_id = 1ul << (next_apic_id++ % local_apics);
 
-	lapic_write(0xe0, 15ul << 28);
-	lapic_write(0xd0, apic_id << 24);
+	local_apic_write(0xe0, 15ul << 28);
+	local_apic_write(0xd0, apic_id << 24);
 }
 
 void apic_setup(void)
