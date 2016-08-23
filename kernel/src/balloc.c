@@ -146,7 +146,7 @@ uintptr_t __balloc_alloc(size_t size, uintptr_t align,
 		const uintptr_t e = ptr->end < to ? ptr->end : to;
 		const uintptr_t addr = (b + (align - 1)) & ~(align - 1);
 
-		if (addr + size >= e) {
+		if (addr + size <= e) {
 			rb_erase(&ptr->link.rb, &balloc_free_ranges);
 			if (ptr->begin < addr)
 				balloc_add_range(ptr->begin, addr);
