@@ -3,6 +3,7 @@
 #include <balloc.h>
 #include <debug.h>
 #include <apic.h>
+#include <smpboot.h>
 
 static void acpi_early_setup(void)
 {
@@ -16,11 +17,15 @@ static void acpi_early_setup(void)
 
 void main(const struct mboot_info *info)
 {
-	static volatile int wait = 0;
+#ifdef DEBUG
+	static volatile int wait = 1;
 	while (wait);
+#endif
+
 	uart8250_setup();
 	balloc_setup(info);
 	acpi_early_setup();
 	apic_setup();
+	smp_setup();
 	while (1);
 }
