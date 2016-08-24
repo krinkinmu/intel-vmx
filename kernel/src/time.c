@@ -29,7 +29,7 @@ struct acpi_hpet {
 	uint8_t attrs;
 } __attribute__((packed));
 
-static unsigned long long hpet_period_us;
+static unsigned long long hpet_period;
 static unsigned long hpet_addr;
 
 static unsigned long hpet_read(int reg)
@@ -69,14 +69,15 @@ static void hpet_enumerate(void)
 static void hpet_setup(void)
 {
 	BUG_ON((hpet_read(0x00) & (1 << 13)) == 0);
-	hpet_period_us = 1;//hpet_read(0x04);// * 1000000000ull;
+	hpet_period = hpet_read(0x04);
 	hpet_write(0x10, 1);
 }
 
 void udelay(unsigned long usec)
 {
+	const unsigned long long clks = (usec * 1000000000ull) / hpet_period;
 	const unsigned long long start = hpet_read64(0xf0);
-	const unsigned long long until = start + usec * hpet_period_us;
+	const unsigned long long until = start + clks;
 
 	while (1) {
 		const unsigned long long clk = hpet_read64(0xf0);
