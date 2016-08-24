@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ioport.h>
 #include <apic.h>
+#include <time.h>
 
 #define CMOS_PORT(x) (0x70 + x)
 
@@ -20,6 +21,7 @@ struct tr_data {
 
 static void ap_boot(void)
 {
+	printf("ap started\n");
 	while (1);
 }
 
@@ -36,22 +38,28 @@ static void tr_data_setup(struct tr_data *data)
 
 static void cmos_write(unsigned char reg, unsigned char val)
 {
-	out8(CMOS_PORT(0), (1u << 7) | reg);
+	out8(CMOS_PORT(0), reg);
 	out8(CMOS_PORT(1), val);
 }
 
 static void tr_setup(unsigned long trampoline)
 {
-	volatile uint32_t *startup_vector = (volatile uint32_t *)0x467;
+	volatile uint16_t *startup_vector = (volatile uint16_t *)0x467;
 
-	*startup_vector = trampoline;
+	*startup_vector = trampoline & 0xf;
+	*(startup_vector + 1) = trampoline >> 4;
 	cmos_write(0x0f, 0x0a);
 }
 
 static void startup_ap(int apic_id, unsigned long startup)
 {
-	(void)apic_id;
-	(void)startup;
+	local_apic_icr_write(apic_id, APIC_ICR_LEVEL | APIC_ICR_ASSERT
+				| APIC_ICR_INIT);
+	udelay(10000);
+	local_apic_icr_write(apic_id, APIC_ICR_LEVEL | APIC_ICR_INIT);
+	local_apic_icr_write(apic_id, APIC_ICR_STARTUP | startup >> 12);
+	udelay(300);
+	local_apic_icr_write(apic_id, APIC_ICR_STARTUP | startup >> 12);
 }
 
 void smp_setup(void)
