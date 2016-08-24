@@ -2,6 +2,7 @@
 #include <uart8250.h>
 #include <balloc.h>
 #include <debug.h>
+#include <time.h>
 #include <apic.h>
 #include <smpboot.h>
 
@@ -26,6 +27,7 @@ void main(const struct mboot_info *info)
 	balloc_setup(info);
 	acpi_early_setup();
 	apic_setup();
+	time_setup();
 	smp_setup();
 	while (1);
 }
