@@ -1,3 +1,4 @@
+#include <apic.h>
 #include <acpi.h>
 #include <debug.h>
 #include <stdint.h>
@@ -16,7 +17,7 @@ struct io_apic {
 static struct io_apic ioapics[MAX_IO_APICS];
 static int ioapics_size;
 
-static uintptr_t local_apic_phys;
+static unsigned long local_apic_phys;
 int local_apic_ids[MAX_LOCAL_APICS];
 int local_apics;
 
@@ -65,9 +66,8 @@ struct acpi_local_apic_phys {
 static void apic_enumerate_acpi(void)
 {
 	ACPI_TABLE_HEADER *table;
-	ACPI_STATUS status;
+	ACPI_STATUS status = AcpiGetTable("APIC", 1, &table);
 
-	status = AcpiGetTable("APIC", 1, &table);
 	if (ACPI_FAILURE(status))
 		BUG("Failed to get MADT table\n");
 
@@ -76,7 +76,7 @@ static void apic_enumerate_acpi(void)
 	uintptr_t ptr = (uintptr_t)(madt + 1);
 	const uintptr_t end = ptr + size;
 
-	local_apic_phys = madt->local_apic_phys;
+	local_apic_phys = (unsigned long)madt->local_apic_phys;
 	while (ptr < end) {
 		const struct acpi_apic *apic = (const struct acpi_apic *)ptr;
 
@@ -108,7 +108,7 @@ static void apic_enumerate_acpi(void)
 			const struct acpi_local_apic_phys *phys =
 				(const struct acpi_local_apic_phys *)apic;
 
-			local_apic_phys = phys->local_apic_phys;
+			local_apic_phys = (unsigned long)phys->local_apic_phys;
 			break;
 		}
 		}
@@ -168,16 +168,16 @@ static void ioapic_setup(struct io_apic *apic)
 
 void local_apic_write(int reg, unsigned long val)
 {
-	volatile uint32_t *base = (volatile uint32_t *)local_apic_phys;
+	volatile uint32_t *ptr = (volatile uint32_t *)(local_apic_phys + reg);
 
-	*(base + reg) = val;
+	*ptr = val;
 }
 
 unsigned long local_apic_read(int reg)
 {
-	volatile uint32_t *base = (volatile uint32_t *)local_apic_phys;
+	volatile uint32_t *ptr = (volatile uint32_t *)(local_apic_phys + reg);
 
-	return *(base + reg);
+	return *ptr;
 }
 
 int local_apic_id(void)
@@ -192,6 +192,15 @@ int local_apic_version(void)
 	const unsigned long apic_version = local_apic_read(0x30);
 
 	return apic_version & 0xff;
+}
+
+void local_apic_icr_write(int dest, unsigned long flags)
+{
+	local_apic_write(0x310, (unsigned long)dest << 24);
+	local_apic_write(0x300, flags);
+
+	while (local_apic_read(0x300) & APIC_ICR_PENDING)
+		__asm__ volatile("pause");
 }
 
 static void lapic_setup(void)
