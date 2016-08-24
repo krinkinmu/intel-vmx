@@ -32,29 +32,13 @@ tr_begin:
 	orl $(CR0_PG | CR0_PM), %eax
 	movl %eax, %cr0
 
-	ljmpl $0x08, $start64
-
-	.code64
-start64:
-	movw $0x10, %ax
-	movw %ax, %ds
-	movw %ax, %es
-	movw %ax, %fs
-	movw %ax, %gs
-	movw %ax, %ss	
-
-	xorq %rax, %rax
 	movl stackend - tr_base, %eax
-	movq %rax, %rsp
+	movl %eax, %esp
 
-	cld
 	movl startup - tr_base, %eax
-	call *%rax
-
-	cli
-1:
-	hlt
-	jmp 1b
+	pushl $0x0
+	pushl %eax
+	ljmpl $0x08, $start64
 
 	.align 4
 	.long 0x13131313
@@ -71,3 +55,20 @@ tr_idt:
 	.word 0x0
 	.long 0x0
 tr_end:
+
+	.code64
+start64:
+	movw $0x10, %ax
+	movw %ax, %ds
+	movw %ax, %es
+	movw %ax, %fs
+	movw %ax, %gs
+	movw %ax, %ss	
+
+	popq %rax
+	call *%rax
+
+	cli
+1:
+	hlt
+	jmp 1b
