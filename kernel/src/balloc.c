@@ -1,8 +1,5 @@
-#include <stdint.h>
 #include <balloc.h>
-#include <rbtree.h>
 #include <debug.h>
-#include <list.h>
 
 
 struct mboot_info {
@@ -19,44 +16,39 @@ struct mboot_mmap_entry {
 	uint32_t type;
 } __attribute__((packed));
 
-struct balloc_node {
-	union {
-		struct rb_node rb;
-		struct list_head ll;
-	} link;
-	uintptr_t begin;
-	uintptr_t end;
-};
+
 
 #define BALLOC_MAX_RANGES	128
-static struct balloc_node balloc_nodes[BALLOC_MAX_RANGES];
+static struct memory_node balloc_nodes[BALLOC_MAX_RANGES];
 static struct list_head balloc_free_list;
 static struct rb_tree balloc_free_ranges;
+struct rb_tree memory_map;
 
 
-static struct balloc_node *balloc_alloc_node(void)
+static struct memory_node *balloc_alloc_node(void)
 {
 	BUG_ON(list_empty(&balloc_free_list));
 
 	struct list_head *node = balloc_free_list.next;
 
 	list_del(node);
-	return LIST_ENTRY(node, struct balloc_node, link.ll);
+	return LIST_ENTRY(node, struct memory_node, link.ll);
 }
 
-static void balloc_free_node(struct balloc_node *node)
+static void balloc_free_node(struct memory_node *node)
 {
 	list_add(&node->link.ll, &balloc_free_list);
 }
 
-static void balloc_add_range(uintptr_t from, uintptr_t to)
+static void __balloc_add_range(struct rb_tree *tree,
+			unsigned long long from, unsigned long long to)
 {
-	struct rb_node **plink = &balloc_free_ranges.root;
+	struct rb_node **plink = &tree->root;
 	struct rb_node *parent = 0;
 
 	while (*plink) {
-		struct balloc_node *node = TREE_ENTRY(*plink,
-					struct balloc_node, link.rb);
+		struct memory_node *node = TREE_ENTRY(*plink,
+					struct memory_node, link.rb);
 
 		parent = *plink;
 		if (node->begin < from)
@@ -65,41 +57,42 @@ static void balloc_add_range(uintptr_t from, uintptr_t to)
 			plink = &parent->left;
 	}
 
-	struct balloc_node *new = balloc_alloc_node();
+	struct memory_node *new = balloc_alloc_node();
 
 	new->begin = from;
 	new->end = to;
 
 	rb_link(&new->link.rb, parent, plink);
-	rb_insert(&new->link.rb, &balloc_free_ranges);
+	rb_insert(&new->link.rb, tree);
 
-	struct balloc_node *prev = TREE_ENTRY(rb_prev(&new->link.rb),
-				struct balloc_node, link.rb);
+	struct memory_node *prev = TREE_ENTRY(rb_prev(&new->link.rb),
+				struct memory_node, link.rb);
 
 	if (prev && prev->end >= new->begin) {
 		new->begin = prev->begin;
-		rb_erase(&prev->link.rb, &balloc_free_ranges);
+		rb_erase(&prev->link.rb, tree);
 		balloc_free_node(prev);
 	}
 
-	struct balloc_node *next = TREE_ENTRY(rb_next(&new->link.rb),
-				struct balloc_node, link.rb);
+	struct memory_node *next = TREE_ENTRY(rb_next(&new->link.rb),
+				struct memory_node, link.rb);
 
 	if (next && next->begin <= new->end) {
 		new->end = next->end;
-		rb_erase(&next->link.rb, &balloc_free_ranges);
+		rb_erase(&next->link.rb, tree);
 		balloc_free_node(next);
 	}
 }
 
-static void balloc_remove_range(uintptr_t from, uintptr_t to)
+static void __balloc_remove_range(struct rb_tree *tree,
+			unsigned long long from, unsigned long long to)
 {
-	struct rb_node *link = balloc_free_ranges.root;
-	struct balloc_node *ptr = 0;
+	struct rb_node *link = tree->root;
+	struct memory_node *ptr = 0;
 
 	while (link) {
-		struct balloc_node *node = TREE_ENTRY(link,
-					struct balloc_node, link.rb);
+		struct memory_node *node = TREE_ENTRY(link,
+					struct memory_node, link.rb);
 
 		if (node->end > from) {
 			link = link->left;
@@ -110,14 +103,14 @@ static void balloc_remove_range(uintptr_t from, uintptr_t to)
 	}
 
 	while (ptr && ptr->begin < to) {
-		struct balloc_node *next = TREE_ENTRY(rb_next(&ptr->link.rb),
-					struct balloc_node, link.rb);
+		struct memory_node *next = TREE_ENTRY(rb_next(&ptr->link.rb),
+					struct memory_node, link.rb);
 
-		rb_erase(&ptr->link.rb, &balloc_free_ranges);
+		rb_erase(&ptr->link.rb, tree);
 		if (ptr->begin < from)
-			balloc_add_range(ptr->begin, from);
+			__balloc_add_range(tree, ptr->begin, from);
 		if (ptr->end > to)
-			balloc_add_range(to, ptr->end);
+			__balloc_add_range(tree, to, ptr->end);
 		balloc_free_node(ptr);
 		ptr = next;
 	}
@@ -126,12 +119,13 @@ static void balloc_remove_range(uintptr_t from, uintptr_t to)
 uintptr_t __balloc_alloc(size_t size, uintptr_t align,
 			uintptr_t from, uintptr_t to)
 {
-	struct rb_node *link = balloc_free_ranges.root;
-	struct balloc_node *ptr = 0;
+	struct rb_tree *tree = &balloc_free_ranges;
+	struct rb_node *link = tree->root;
+	struct memory_node *ptr = 0;
 
 	while (link) {
-		struct balloc_node *node = TREE_ENTRY(link,
-					struct balloc_node, link.rb);
+		struct memory_node *node = TREE_ENTRY(link,
+					struct memory_node, link.rb);
 
 		if (node->end > from) {
 			link = link->left;
@@ -142,22 +136,24 @@ uintptr_t __balloc_alloc(size_t size, uintptr_t align,
 	}
 
 	while (ptr && ptr->begin < to) {
-		const uintptr_t b = ptr->begin > from ? ptr->begin : from;
-		const uintptr_t e = ptr->end < to ? ptr->end : to;
-		const uintptr_t addr = (b + (align - 1)) & ~(align - 1);
+		const unsigned long long b = ptr->begin > from
+					? ptr->begin : from;
+		const unsigned long long e = ptr->end < to ? ptr->end : to;
+		const unsigned long long mask = align - 1;
+		const unsigned long long addr = (b + mask) & ~mask;
 
 		if (addr + size <= e) {
-			rb_erase(&ptr->link.rb, &balloc_free_ranges);
+			rb_erase(&ptr->link.rb, tree);
 			if (ptr->begin < addr)
-				balloc_add_range(ptr->begin, addr);
+				__balloc_add_range(tree, ptr->begin, addr);
 			if (ptr->end > addr + size)
-				balloc_add_range(addr + size, ptr->end);
+				__balloc_add_range(tree, addr + size, ptr->end);
 			balloc_free_node(ptr);
 			return addr;
 		}
 
 		ptr = TREE_ENTRY(rb_next(&ptr->link.rb),
-					struct balloc_node, link.rb);
+					struct memory_node, link.rb);
 	}
 
 	return to;
@@ -176,7 +172,7 @@ uintptr_t balloc_alloc(size_t size, uintptr_t from, uintptr_t to)
 
 void balloc_free(uintptr_t begin, uintptr_t end)
 {
-	balloc_add_range(begin, end);
+	__balloc_add_range(&balloc_free_ranges, begin, end);
 }
 
 
@@ -199,49 +195,56 @@ static void balloc_parse_mmap(const struct mboot_info *info)
 	while (ptr + sizeof(struct mboot_mmap_entry) <= end) {
 		const struct mboot_mmap_entry *entry =
 					(const struct mboot_mmap_entry *)ptr;
-		const uintptr_t range_begin = entry->addr;
-		const uintptr_t range_end = range_begin + entry->length;
+		const unsigned long long rbegin = entry->addr;
+		const unsigned long long rend = rbegin + entry->length;
 
-		if (entry->type == 1)
-			balloc_add_range(range_begin, range_end);
-		ptr += entry->size + sizeof(entry->size);
-	}
-
-	ptr = begin;
-	while (ptr + sizeof(struct mboot_mmap_entry) <= end) {
-		const struct mboot_mmap_entry *entry =
-					(const struct mboot_mmap_entry *)ptr;
-		const uintptr_t range_begin = entry->addr;
-		const uintptr_t range_end = range_begin + entry->length;
-
-		if (entry->type != 1)
-			balloc_remove_range(range_begin, range_end);
+		__balloc_add_range(&memory_map, rbegin, rend);
 		ptr += entry->size + sizeof(entry->size);
 	}
 
 	extern char kernel_phys_begin[];
 	extern char kernel_phys_end[];
 
-	const uintptr_t kernel_begin = (uintptr_t)kernel_phys_begin;
-	const uintptr_t kernel_end = (uintptr_t)kernel_phys_end;
+	const uintptr_t kbegin = (uintptr_t)kernel_phys_begin;
+	const uintptr_t kend = (uintptr_t)kernel_phys_end;
 
-	balloc_remove_range(kernel_begin, kernel_end);
+	__balloc_add_range(&memory_map, kbegin, kend);
+
+	ptr = begin;
+	while (ptr + sizeof(struct mboot_mmap_entry) <= end) {
+		const struct mboot_mmap_entry *entry =
+					(const struct mboot_mmap_entry *)ptr;
+		const unsigned long long rbegin = entry->addr;
+		const unsigned long long rend = rbegin + entry->length;
+
+		if (entry->type == 1)
+			__balloc_add_range(&balloc_free_ranges, rbegin, rend);
+		ptr += entry->size + sizeof(entry->size);
+	}
+
+	__balloc_remove_range(&balloc_free_ranges, kbegin, kend);
+}
+
+static void __balloc_dump_ranges(const struct rb_tree *tree)
+{
+	const struct memory_node *node = TREE_ENTRY(rb_leftmost(tree->root),
+				struct memory_node, link.rb);
+
+	while (node) {
+		printf("memory range: 0x%llx-0x%llx\n",
+					(unsigned long long)node->begin,
+					(unsigned long long)node->end);
+		node = TREE_ENTRY(rb_next(&node->link.rb),
+					struct memory_node, link.rb);
+	}
 }
 
 static void balloc_dump_ranges(void)
 {
-	const struct rb_tree *tree = &balloc_free_ranges;
-	struct balloc_node *node = TREE_ENTRY(rb_leftmost(tree->root),
-				struct balloc_node, link.rb);
-
+	printf("known memory ranges:\n");
+	__balloc_dump_ranges(&memory_map);
 	printf("free memory ranges:\n");
-	while (node) {
-		printf("memory range: 0x%lx-0x%lx\n",
-					(unsigned long)node->begin,
-					(unsigned long)node->end);
-		node = TREE_ENTRY(rb_next(&node->link.rb),
-					struct balloc_node, link.rb);
-	}
+	__balloc_dump_ranges(&balloc_free_ranges);
 }
 
 void balloc_setup(const struct mboot_info *info)
