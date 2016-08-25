@@ -4,26 +4,10 @@
 #include <stdint.h>
 
 
-struct acpi_addr {
-	uint8_t address_space;
-	uint8_t width;
-	uint8_t offset;
-	uint8_t size;
-	uint64_t addr;
-} __attribute__((packed));
-
 struct acpi_hpet {
-	uint32_t sign;
-	uint32_t size;
-	uint8_t revision;
-	uint8_t chksum;
-	uint8_t oem_id[6];
-	uint64_t oem_table_id;
-	uint32_t oem_revision;
-	uint32_t creator_id;
-	uint32_t creator_revision;
+	ACPI_TABLE_HEADER hdr;
 	uint32_t hpet_block_id;
-	struct acpi_addr addr;
+	ACPI_GENERIC_ADDRESS addr;
 	uint8_t hpet_seq_num;
 	uint16_t min_clock_ticks;
 	uint8_t attrs;
@@ -63,7 +47,8 @@ static void hpet_enumerate(void)
 
 	const struct acpi_hpet *hpet = (const struct acpi_hpet *)table;
 
-	hpet_addr = (unsigned long)hpet->addr.addr;
+	BUG_ON(hpet->addr.SpaceId != 0);
+	hpet_addr = (unsigned long)hpet->addr.Address;
 }
 
 static void hpet_setup(void)

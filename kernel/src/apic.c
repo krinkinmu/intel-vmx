@@ -23,15 +23,7 @@ int local_apics;
 
 
 struct acpi_madt {
-	uint32_t sign;
-	uint32_t size;
-	uint8_t revision;
-	uint8_t chksum;
-	uint8_t oem_id[6];
-	uint64_t oem_table_id;
-	uint32_t oem_revision;
-	uint32_t creator_id;
-	uint32_t creator_revision;
+	ACPI_TABLE_HEADER hdr;
 	uint32_t local_apic_phys;
 	uint32_t flags;
 } __attribute__((packed));
@@ -72,7 +64,7 @@ static void apic_enumerate_acpi(void)
 		BUG("Failed to get MADT table\n");
 
 	const struct acpi_madt *madt = (const struct acpi_madt *)table;
-	const size_t size = madt->size;
+	const size_t size = madt->hdr.Length;
 	uintptr_t ptr = (uintptr_t)(madt + 1);
 	const uintptr_t end = ptr + size;
 
