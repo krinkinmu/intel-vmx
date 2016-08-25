@@ -2,6 +2,7 @@
 #include <acpi.h>
 #include <debug.h>
 #include <stdint.h>
+#include <cpu.h>
 
 
 struct acpi_hpet {
@@ -74,8 +75,7 @@ void udelay(unsigned long usec)
 			if (clk >= until || clk <= start)
 				break;
 		}
-
-		__asm__ volatile ("pause");
+		cpu_relax();
 	}
 }
 

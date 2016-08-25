@@ -3,6 +3,7 @@
 #include <debug.h>
 #include <stdint.h>
 #include <ioport.h>
+#include <cpu.h>
 
 
 struct io_apic {
@@ -192,7 +193,7 @@ void local_apic_icr_write(int dest, unsigned long flags)
 	local_apic_write(0x300, flags);
 
 	while (local_apic_read(0x300) & APIC_ICR_PENDING)
-		__asm__ volatile("pause");
+		cpu_relax();
 }
 
 static void lapic_setup(void)
