@@ -24,10 +24,10 @@ static inline void rb_link(struct rb_node *node, struct rb_node *parent,
 	*plink = node;
 }
 
-struct rb_node *rb_rightmost(struct rb_node *node);
-struct rb_node *rb_leftmost(struct rb_node *node);
-struct rb_node *rb_next(struct rb_node *node);
-struct rb_node *rb_prev(struct rb_node *node);
+struct rb_node *rb_rightmost(const struct rb_node *node);
+struct rb_node *rb_leftmost(const struct rb_node *node);
+struct rb_node *rb_next(const struct rb_node *node);
+struct rb_node *rb_prev(const struct rb_node *node);
 void rb_erase(struct rb_node *node, struct rb_tree *tree);
 void rb_insert(struct rb_node *node, struct rb_tree *tree);
 

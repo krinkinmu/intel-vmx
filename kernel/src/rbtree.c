@@ -15,7 +15,7 @@ static void rb_set_red(struct rb_node *node)
 static void rb_set_black(struct rb_node *node)
 { rb_set_color(node, BLACK); }
 
-static struct rb_node *rb_parent(struct rb_node *node)
+static struct rb_node *rb_parent(const struct rb_node *node)
 { return (struct rb_node *)(node->parent & (~(uintptr_t)1)); }
 
 static void rb_set_parent(struct rb_node *child, struct rb_node *parent)
@@ -69,27 +69,27 @@ static void rb_rotate_right(struct rb_node *x, struct rb_tree *tree)
 	rb_set_parent(x, l);
 }
 
-struct rb_node *rb_rightmost(struct rb_node *node)
+struct rb_node *rb_rightmost(const struct rb_node *node)
 {
 	if (!node)
 		return 0;
 
 	while (node->right)
 		node = node->right;
-	return node;
+	return (struct rb_node *)node;
 }
 
-struct rb_node *rb_leftmost(struct rb_node *node)
+struct rb_node *rb_leftmost(const struct rb_node *node)
 {
 	if (!node)
 		return 0;
 
 	while (node->left)
 		node = node->left;
-	return node;
+	return (struct rb_node *)node;
 }
 
-struct rb_node *rb_next(struct rb_node *node)
+struct rb_node *rb_next(const struct rb_node *node)
 {
 	if (!node)
 		return 0;
@@ -97,17 +97,17 @@ struct rb_node *rb_next(struct rb_node *node)
 	if (node->right)
 		return rb_leftmost(node->right);
 
-	struct rb_node *p = rb_parent(node);
+	const struct rb_node *p = rb_parent(node);
 
 	while (p && p->right == node) {
 		node = p;
 		p = rb_parent(p);
 	}
 
-	return p;
+	return (struct rb_node *)p;
 }
 
-struct rb_node *rb_prev(struct rb_node *node)
+struct rb_node *rb_prev(const struct rb_node *node)
 {
 	if (!node)
 		return 0;
@@ -115,14 +115,14 @@ struct rb_node *rb_prev(struct rb_node *node)
 	if (node->left)
 		return rb_rightmost(node->left);
 
-	struct rb_node *p = rb_parent(node);
+	const struct rb_node *p = rb_parent(node);
 
 	while (p && p->left == node) {
 		node = p;
 		p = rb_parent(p);
 	}
 
-	return p;
+	return (struct rb_node *)p;
 }
 
 void rb_insert(struct rb_node *node, struct rb_tree *tree)
