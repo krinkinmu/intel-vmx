@@ -135,7 +135,7 @@ static void page_alloc_zone_free(uintptr_t zbegin, uintptr_t zend)
 
 	BUG_ON(!zone);
 	BUG_ON(begin < zone->begin || begin >= zone->end);
-	BUG_ON(end < zone->begin || end >= zone->end);
+	BUG_ON(end <= zone->begin || end > zone->end);
 
 	for (uintptr_t page = begin; page != end;) {
 		int order = 0;
