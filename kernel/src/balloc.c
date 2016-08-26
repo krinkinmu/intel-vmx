@@ -70,6 +70,8 @@ static void __balloc_add_range(struct rb_tree *tree,
 
 	if (prev && prev->end >= new->begin) {
 		new->begin = prev->begin;
+		if (prev->end > new->end)
+			new->end = prev->end;
 		rb_erase(&prev->link.rb, tree);
 		balloc_free_node(prev);
 	}
