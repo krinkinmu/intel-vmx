@@ -21,7 +21,8 @@ struct mboot_mmap_entry {
 #define BALLOC_MAX_RANGES	128
 static struct memory_node balloc_nodes[BALLOC_MAX_RANGES];
 static struct list_head balloc_free_list;
-static struct rb_tree balloc_free_ranges;
+
+struct rb_tree free_ranges;
 struct rb_tree memory_map;
 
 
@@ -121,7 +122,7 @@ static void __balloc_remove_range(struct rb_tree *tree,
 uintptr_t __balloc_alloc(size_t size, uintptr_t align,
 			uintptr_t from, uintptr_t to)
 {
-	struct rb_tree *tree = &balloc_free_ranges;
+	struct rb_tree *tree = &free_ranges;
 	struct rb_node *link = tree->root;
 	struct memory_node *ptr = 0;
 
@@ -174,7 +175,7 @@ uintptr_t balloc_alloc(size_t size, uintptr_t from, uintptr_t to)
 
 void balloc_free(uintptr_t begin, uintptr_t end)
 {
-	__balloc_add_range(&balloc_free_ranges, begin, end);
+	__balloc_add_range(&free_ranges, begin, end);
 }
 
 
@@ -220,11 +221,11 @@ static void balloc_parse_mmap(const struct mboot_info *info)
 		const unsigned long long rend = rbegin + entry->length;
 
 		if (entry->type == 1)
-			__balloc_add_range(&balloc_free_ranges, rbegin, rend);
+			__balloc_add_range(&free_ranges, rbegin, rend);
 		ptr += entry->size + sizeof(entry->size);
 	}
 
-	__balloc_remove_range(&balloc_free_ranges, kbegin, kend);
+	__balloc_remove_range(&free_ranges, kbegin, kend);
 }
 
 static void __balloc_dump_ranges(const struct rb_tree *tree)
@@ -246,7 +247,7 @@ static void balloc_dump_ranges(void)
 	printf("known memory ranges:\n");
 	__balloc_dump_ranges(&memory_map);
 	printf("free memory ranges:\n");
-	__balloc_dump_ranges(&balloc_free_ranges);
+	__balloc_dump_ranges(&free_ranges);
 }
 
 void balloc_setup(const struct mboot_info *info)
