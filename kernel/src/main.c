@@ -5,6 +5,7 @@
 #include <time.h>
 #include <apic.h>
 #include <smpboot.h>
+#include <memory.h>
 
 static void acpi_early_setup(void)
 {
@@ -25,6 +26,7 @@ void main(const struct mboot_info *info)
 
 	uart8250_setup();
 	balloc_setup(info);
+	page_alloc_setup();
 	acpi_early_setup();
 	apic_setup();
 	time_setup();
