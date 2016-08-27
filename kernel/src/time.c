@@ -16,19 +16,18 @@ struct acpi_hpet {
 	uint8_t attrs;
 } __attribute__((packed));
 
-struct timer {
+struct hpet_block {
 	unsigned long long period;
 	unsigned long long overflow;
 	uintptr_t addr;
 	int cnt_width;
-	int cmp_width;
-	int index;
 };
 
-static struct timer *timers;
-static int timers_size;
-static struct timer *delay_timer;
+static struct hpet_block *hpet_block;
+static int hpet_blocks;
+static struct hpet_block *delay_timer;
 
+/*
 static unsigned long hpet_read(uintptr_t addr, int reg)
 {
 	BUG_ON(reg % 4 != 0);
@@ -36,6 +35,7 @@ static unsigned long hpet_read(uintptr_t addr, int reg)
 
 	return *ptr;
 }
+*/
 
 static unsigned long long hpet_read64(uintptr_t addr, int reg)
 {
@@ -65,19 +65,17 @@ static void hpet_write64(uintptr_t addr, int reg, unsigned long long val)
 
 static void hpet_realloc(int new_size)
 {
-	if (new_size <= timers_size)
-		return;
+	struct hpet_block *old_hpet_block = hpet_block;
+	const size_t size = sizeof(*old_hpet_block) * new_size;
+	const size_t old_size = sizeof(*old_hpet_block) * hpet_blocks;
 
-	struct timer *old_timers = timers;
-
-	timers = (struct timer *)balloc_alloc(sizeof(*old_timers) * new_size,
+	hpet_block = (struct hpet_block *)balloc_alloc(size,
 				/* from = */0x1000, /* to = */UINTPTR_MAX);
-	BUG_ON((uintptr_t)timers == UINTPTR_MAX);
+	BUG_ON((uintptr_t)hpet_block == UINTPTR_MAX);
 
-	memcpy(timers, old_timers, sizeof(*old_timers) * timers_size);
-	balloc_free((uintptr_t)old_timers,
-				(uintptr_t)(old_timers + timers_size));
-	timers_size = new_size;
+	memcpy(hpet_block, old_hpet_block, old_size < size ? old_size : size);
+	balloc_free((uintptr_t)old_hpet_block,
+				(uintptr_t)old_hpet_block + old_size);
 }
 
 static unsigned long long hpet_overflow(int width, unsigned long long period)
@@ -100,33 +98,21 @@ static void hpet_block_setup(uintptr_t addr)
 	const unsigned long period = gen_cap >> 32;
 	const int cnt_width = (gen_cap ^ (1 << 13)) ? 64 : 32;
 	const unsigned long long overflow = hpet_overflow(cnt_width, period);
-	const int count = 1 + ((gen_cap >> 8) & 0xf);
-	const int index = timers_size;
 
-	hpet_realloc(timers_size + count);
+	hpet_realloc(hpet_blocks + 1);
 
-	for (int i = 0; i != count; ++i) {
-		struct timer *timer = &timers[index + i];
-		const int conf_reg = 0x100 + 0x20 * i;
-		const unsigned long timer_conf = hpet_read(addr, conf_reg);
-		const int cmp_width = timer_conf & (1 << 5) ? 64 : 32;
+	struct hpet_block *block = &hpet_block[hpet_blocks++];
 
-		if (timer_conf & (1 << 2))
-			hpet_write(addr, conf_reg, timer_conf & ~(1ul << 2));
-
-		printf("HPET timer width %d, period %lu fs\n",
-					cmp_width, period);
-		timer->period = period;
-		timer->overflow = overflow;
-		timer->addr = addr;
-		timer->cnt_width = cnt_width;
-		timer->cmp_width = cmp_width;
-		timer->index = i;
-	}
+	printf("HPET block counter width %d, period %lu fs\n",
+				cnt_width, period);
+	block->period = period;
+	block->overflow = overflow;
+	block->addr = addr;
+	block->cnt_width = cnt_width;
 
 	hpet_write(addr, 0x10, 1);
 	if (!delay_timer && cnt_width == 64)
-		delay_timer = &timers[index];
+		delay_timer = block;
 }
 
 static void hpet_setup(void)
@@ -147,7 +133,7 @@ static void hpet_setup(void)
 	BUG_ON(!delay_timer);
 }
 
-static void wait_loop(const struct timer *timer, unsigned long long from,
+static void wait_loop(const struct hpet_block *timer, unsigned long long from,
 			unsigned long long until)
 {
 	unsigned long long clk;
@@ -169,7 +155,7 @@ static void wait_loop(const struct timer *timer, unsigned long long from,
 	}
 }
 
-static void __udelay(const struct timer *timer, unsigned long usec)
+static void __udelay(const struct hpet_block *timer, unsigned long usec)
 {
 	const unsigned long long mask = (1ull << (timer->cnt_width - 1));
 	unsigned long long start = hpet_read64(timer->addr, 0xf0);
