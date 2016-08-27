@@ -4,6 +4,7 @@
 #include <ioport.h>
 #include <apic.h>
 #include <time.h>
+#include <cpu.h>
 
 #define CMOS_PORT(x) (0x70 + x)
 
@@ -18,11 +19,18 @@ struct tr_data {
 	uint32_t idt_addr;
 } __attribute__((packed));
 
+static volatile int ap_started;	/* TODO: must be atomic */
+static volatile int ap_continue;
 
 static void ap_boot(void)
 {
+	ap_started = 1;
+	while (!ap_continue)
+		cpu_relax();
+
 	printf("ap started\n");
 	while (1);
+		cpu_relax();
 }
 
 static void tr_data_setup(struct tr_data *data)
@@ -53,6 +61,8 @@ static void tr_setup(unsigned long trampoline)
 
 static void startup_ap(int apic_id, unsigned long startup)
 {
+	ap_started = 0;
+
 	local_apic_icr_write(apic_id, APIC_ICR_LEVEL | APIC_ICR_ASSERT
 				| APIC_ICR_INIT);
 	udelay(10000);
@@ -60,9 +70,13 @@ static void startup_ap(int apic_id, unsigned long startup)
 	local_apic_icr_write(apic_id, APIC_ICR_STARTUP | startup >> 12);
 	udelay(300);
 	local_apic_icr_write(apic_id, APIC_ICR_STARTUP | startup >> 12);
+
+	/* TODO: limit wait and drop AP if startup failed */
+	while (!ap_started)
+		cpu_relax();
 }
 
-void smp_setup(void)
+void smp_early_setup(void)
 {
 	static const uintptr_t from = 0x1000;
 	static const uintptr_t to = 0xa0000;
@@ -113,4 +127,10 @@ void smp_setup(void)
 		tr_data->stackend = stack + stack_size;
 		startup_ap(apic_id, (unsigned long)trampoline);
 	}
+	balloc_free((uintptr_t)trampoline, (uintptr_t)trampoline + size);
+}
+
+void smp_setup(void)
+{
+	ap_continue = 1;
 }
