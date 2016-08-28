@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <time.h>
 #include <apic.h>
+#include <ints.h>
 #include <smpboot.h>
 #include <memory.h>
 
@@ -27,8 +28,10 @@ void main(const struct mboot_info *info)
 	uart8250_setup();
 	balloc_setup(info);
 	acpi_early_setup();
-	time_setup();
 	apic_setup();
+	ints_setup();
+	cpu_ints_setup();
+	time_setup();
 	smp_early_setup();
 	page_alloc_setup();
 	smp_setup();
