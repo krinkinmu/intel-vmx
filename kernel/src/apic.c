@@ -1,22 +1,15 @@
 #include <apic.h>
 #include <acpi.h>
 #include <debug.h>
-#include <stdint.h>
 #include <ioport.h>
 #include <cpu.h>
 
 
-struct io_apic {
-	uintptr_t phys;
-	int first_intno;
-	int last_intno;
-};
-
 #define MAX_IO_APICS	8
 #define MAX_LOCAL_APICS	8
 
-static struct io_apic ioapics[MAX_IO_APICS];
-static int ioapics_size;
+struct io_apic ioapic[MAX_IO_APICS];
+int ioapics;
 
 static unsigned long local_apic_phys;
 int local_apic_ids[MAX_LOCAL_APICS];
@@ -29,20 +22,20 @@ struct acpi_madt {
 	uint32_t flags;
 } __attribute__((packed));
 
-struct acpi_apic {
+struct acpi_apic_hdr {
 	uint8_t type;
 	uint8_t size;
 } __attribute__((packed));
 
 struct acpi_local_apic {
-	struct acpi_apic hdr;
+	struct acpi_apic_hdr hdr;
 	uint8_t acpi_cpu_id;
 	uint8_t local_apic_id;
 	uint32_t flags;
 } __attribute__((packed));
 
 struct acpi_io_apic {
-	struct acpi_apic hdr;
+	struct acpi_apic_hdr hdr;
 	uint8_t io_apic_id;
 	uint8_t reserved;
 	uint32_t io_apic_phys;
@@ -50,7 +43,7 @@ struct acpi_io_apic {
 } __attribute__((packed));
 
 struct acpi_local_apic_phys {
-	struct acpi_apic hdr;
+	struct acpi_apic_hdr hdr;
 	uint16_t reserved;
 	uint64_t local_apic_phys;
 } __attribute__((packed));
@@ -71,41 +64,42 @@ static void apic_enumerate_acpi(void)
 
 	local_apic_phys = (unsigned long)madt->local_apic_phys;
 	while (ptr < end) {
-		const struct acpi_apic *apic = (const struct acpi_apic *)ptr;
+		const struct acpi_apic_hdr *hdr =
+					(const struct acpi_apic_hdr *)ptr;
 
-		switch (apic->type) {
+		switch (hdr->type) {
 		case 0: {
-			const struct acpi_local_apic *local =
-					(const struct acpi_local_apic *)apic;
+			const struct acpi_local_apic *apic =
+					(const struct acpi_local_apic *)hdr;
 
-			if ((local->flags & 1) == 0)
+			if ((apic->flags & 1) == 0)
 				break;
 
 			if (local_apics == MAX_LOCAL_APICS)
 				break;
-			local_apic_ids[local_apics++] = local->local_apic_id;
+			local_apic_ids[local_apics++] = apic->local_apic_id;
 			break;
 		}
 		case 1: {
 			const struct acpi_io_apic *io =
-					(const struct acpi_io_apic *)apic;
-			struct io_apic *ioapic = &ioapics[ioapics_size];
+					(const struct acpi_io_apic *)hdr;
+			struct io_apic *apic = &ioapic[ioapics];
 
-			BUG_ON(ioapics_size == MAX_IO_APICS);
-			ioapic->first_intno = io->intno;
-			ioapic->phys = io->io_apic_phys;
-			++ioapics_size;
+			BUG_ON(ioapics == MAX_IO_APICS);
+			apic->base_gsi = io->intno;
+			apic->phys = io->io_apic_phys;
+			++ioapics;
 			break;
 		}
 		case 5: {
 			const struct acpi_local_apic_phys *phys =
-				(const struct acpi_local_apic_phys *)apic;
+				(const struct acpi_local_apic_phys *)hdr;
 
 			local_apic_phys = (unsigned long)phys->local_apic_phys;
 			break;
 		}
 		}
-		ptr += apic->size;
+		ptr += hdr->size;
 	}
 }
 
@@ -130,8 +124,7 @@ static void disable_legacy_pic(void)
 	out8(slave_data_port, 0xff);
 }
 
-static void ioapic_write(const struct io_apic *apic, unsigned long reg,
-			unsigned long val)
+void io_apic_write(struct io_apic *apic, int reg, unsigned long val)
 {
 	volatile uint32_t *base = (volatile uint32_t *)apic->phys;
 
@@ -139,7 +132,7 @@ static void ioapic_write(const struct io_apic *apic, unsigned long reg,
 	*(base + 4) = val;
 }
 
-static unsigned long ioapic_read(const struct io_apic *apic, unsigned long reg)
+unsigned long io_apic_read(const struct io_apic *apic, int reg)
 {
 	volatile uint32_t *base = (volatile uint32_t *)apic->phys;
 
@@ -149,14 +142,14 @@ static unsigned long ioapic_read(const struct io_apic *apic, unsigned long reg)
 
 static void ioapic_setup(struct io_apic *apic)
 {
-	const unsigned long ioapicver = ioapic_read(apic, 1);
+	const unsigned long ioapicver = io_apic_read(apic, 1);
 	const int last_io_pin = (ioapicver >> 16) & 0xff;
 
-	apic->last_intno = apic->first_intno + last_io_pin;
+	apic->pins = last_io_pin + 1;
 
-	for (int i = 0; i != last_io_pin + 1; ++i)
+	for (int i = 0; i != apic->pins; ++i)
 		/* By default they should be disabled, but anyway... */
-		ioapic_write(apic, 0x10 + i, 1ul << 16);
+		io_apic_write(apic, IO_APIC_RDREG_LOW(i), IO_APIC_MASK_PIN);
 }
 
 void local_apic_write(int reg, unsigned long val)
@@ -205,21 +198,41 @@ static void lapic_setup(void)
 	local_apic_write(0xd0, apic_id << 24);
 }
 
+struct io_apic *io_apic_find(int gsi)
+{
+	for (int i = 0; i != ioapics; ++i) {
+		struct io_apic *apic = &ioapic[i];
+
+		if (apic->base_gsi <= gsi && apic->base_gsi + apic->pins > gsi)
+			return apic;
+	}
+
+	return 0;
+}
+
+int io_apic_pin(const struct io_apic *apic, int gsi)
+{
+	return gsi - apic->base_gsi;
+}
+
 void apic_setup(void)
 {
 	apic_enumerate_acpi();
 	disable_legacy_pic();
-	for (int i = 0; i != ioapics_size; ++i)
-		ioapic_setup(&ioapics[i]);
+	for (int i = 0; i != ioapics; ++i)
+		ioapic_setup(&ioapic[i]);
 	lapic_setup();
 
 
 	printf("There are %d local APICS at addr 0x%lx\n",
 			local_apics, (unsigned long)local_apic_phys);
 
-	for (int i = 0; i != ioapics_size; ++i)
+	for (int i = 0; i != ioapics; ++i) {
+		const struct io_apic *apic = &ioapic[i];
+
 		printf("IO APIC id ints [%d;%d] at addr 0x%lx\n",
-					ioapics[i].first_intno,
-					ioapics[i].last_intno,
-					(unsigned long)ioapics[i].phys);
+					apic->base_gsi,
+					apic->base_gsi + apic->pins - 1,
+					(unsigned long)apic->phys);
+	}
 }
