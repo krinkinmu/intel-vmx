@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+#define INT_ACTIVE_HIGH	0
+#define INT_ACTIVE_LOW	1
+#define INT_EDGE	0
+#define INT_LEVEL	1
+
 struct frame {
 	uint64_t r11;
 	uint64_t r10;
@@ -33,6 +38,10 @@ static inline void local_int_enable(void)
 
 static inline void local_int_disable(void)
 { __asm__ volatile ("cli"); }
+
+void register_irq(int irq, int gsi, int trigger, int polarity);
+void activate_irq(int irq);
+void deactivate_irq(int irq);
 
 void ints_setup(void);
 void cpu_ints_setup(void);
