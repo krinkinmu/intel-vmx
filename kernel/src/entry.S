@@ -71,7 +71,7 @@ __entry:
 	movq 48(%rsp), %rdx
 	movq 56(%rsp), %rsi
 	movq 64(%rsp), %rdi
-	addq $86, %rsp
+	addq $88, %rsp
 	iretq
 
 #define EXC(num) \
