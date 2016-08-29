@@ -90,8 +90,7 @@ $(KERNEL_C_OBJ): %.o: %.c
 	$(CC) -I$(KERNEL_INC) -I$(LIBC_INC) -isystem $(ACPICA_INC) \
 		$(CFLAGS) -MD -c $< -o $@
 
--include $(DEP)
--include $(ADEP)
+-include $(KERNEL_DEP)
 -include $(ACPICA_DEP)
 -include $(LIBC_DEP)
 
