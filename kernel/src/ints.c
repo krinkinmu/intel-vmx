@@ -63,6 +63,14 @@ static void exception_handle(struct frame *frame)
 				(int)frame->num, (unsigned long)frame->err);
 }
 
+static void ack_irq(int irq)
+{
+	/* TODO: suppress broadcast EOI and for level triggered interrupts
+	 * ack corresponding io_apic explicitly. */
+	(void) irq;
+	local_apic_write(0xb0, 0);
+}
+
 static void irq_handle(int irq)
 {
 	BUG_ON(irq >= IDT_IRQ_END - IDT_IRQ_BEGIN);
@@ -71,6 +79,7 @@ static void irq_handle(int irq)
 
 	BUG_ON(!desc->handler);
 	desc->handler();
+	ack_irq(irq);
 }
 
 void isr_handler(struct frame *frame)
@@ -176,9 +185,9 @@ void register_irq(int irq, int gsi, int trigger, int polarity)
 	const int vector = irq + IDT_IRQ_BEGIN;
 	const unsigned long low = IO_APIC_VECTOR(vector) | IO_APIC_LOWEST
 				| IO_APIC_LOGICAL
-				| INT_ACTIVE_LOW ?
-				  IO_APIC_ACTIVE_LOW : IO_APIC_ACTIVE_HIGH
-				| INT_EDGE ? IO_APIC_EDGE : IO_APIC_LEVEL
+				| (INT_ACTIVE_LOW ?
+				  IO_APIC_ACTIVE_LOW : IO_APIC_ACTIVE_HIGH)
+				| (INT_EDGE ? IO_APIC_EDGE : IO_APIC_LEVEL)
 				| IO_APIC_MASK_PIN;
 	const unsigned long high = IO_APIC_DESTINATION(0xff);
 
