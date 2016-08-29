@@ -106,6 +106,34 @@ static unsigned long long hpet_overflow(int width, unsigned long long period)
 	return (period << 19) / 244140625;
 }
 
+static int hpet_timers(const struct hpet_block *block)
+{
+	return 1 + ((hpet_read(block->addr, 0) >> 8) & 0xf);
+}
+
+static void hpet_stop(struct hpet_block *block)
+{
+	hpet_write(block->addr, 0x10, 0);
+}
+
+static void hpet_start(struct hpet_block *block)
+{
+	hpet_write(block->addr, 0x10, 1);
+}
+
+static void hpet_block_reset(struct hpet_block *block)
+{
+	const int timers = hpet_timers(block); 
+
+	hpet_stop(block);
+	hpet_write64(block->addr, 0xf0, 0);
+
+	for (int i = 0; i != timers; ++i)
+		/* TODO: this is bad, since we don't check whether zero
+		   Tn_INT_ROUTE_CNF is valid or not. */
+		hpet_write(block->addr, TN_CONF(i), 0);
+}
+
 static void hpet_block_setup(uintptr_t addr)
 {
 	const unsigned long long gen_cap = hpet_read64(addr, 0);
@@ -123,6 +151,7 @@ static void hpet_block_setup(uintptr_t addr)
 	block->overflow = overflow;
 	block->addr = addr;
 	block->cnt_width = cnt_width;
+	hpet_block_reset(block);
 }
 
 static struct hpet_block *hpet_default_find(void)
@@ -195,21 +224,6 @@ static unsigned long long hpet_ticks(const struct hpet_block *block,
 	return (((unsigned long long)ms << 12) * 244140625ull) / period;
 }
 
-static int hpet_timers(const struct hpet_block *block)
-{
-	return 1 + ((hpet_read(block->addr, 0) >> 8) & 0xf);
-}
-
-static void hpet_stop(struct hpet_block *block)
-{
-	hpet_write(block->addr, 0x10, 0);
-}
-
-static void hpet_start(struct hpet_block *block)
-{
-	hpet_write(block->addr, 0x10, 1);
-}
-
 static void hpet_setup_default(void)
 {
 	BUG_ON(!(default_block = hpet_default_find()));
@@ -235,7 +249,6 @@ static void hpet_setup_default(void)
 	const unsigned long long ticks = hpet_ticks(default_block, TIMER_TICK);
 	BUG_ON(width == 32 && ticks >= (1ull << 32));
 
-	hpet_stop(default_block);
 	hpet_setup_periodic(default_block, default_timer, ticks, TIMER_IRQ);
 	register_irq_handler(TIMER_IRQ, &hpet_default_timer_handler);
 	activate_irq(TIMER_IRQ);

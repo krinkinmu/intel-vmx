@@ -185,9 +185,10 @@ void register_irq(int irq, int gsi, int trigger, int polarity)
 	const int vector = irq + IDT_IRQ_BEGIN;
 	const unsigned long low = IO_APIC_VECTOR(vector) | IO_APIC_LOWEST
 				| IO_APIC_LOGICAL
-				| (INT_ACTIVE_LOW ?
+				| (INT_ACTIVE_LOW == polarity ?
 				  IO_APIC_ACTIVE_LOW : IO_APIC_ACTIVE_HIGH)
-				| (INT_EDGE ? IO_APIC_EDGE : IO_APIC_LEVEL)
+				| (INT_EDGE == trigger ?
+				  IO_APIC_EDGE : IO_APIC_LEVEL)
 				| IO_APIC_MASK_PIN;
 	const unsigned long high = IO_APIC_DESTINATION(0xff);
 
