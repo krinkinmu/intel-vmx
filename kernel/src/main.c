@@ -35,5 +35,6 @@ void main(const struct mboot_info *info)
 	smp_early_setup();
 	page_alloc_setup();
 	smp_setup();
+	local_int_enable();
 	while (1);
 }
