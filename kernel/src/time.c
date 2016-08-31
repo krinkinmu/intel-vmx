@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <limits.h>
 #include <balloc.h>
+#include <apic.h>
 #include <ints.h>
 #include <cpu.h>
 
@@ -187,16 +188,25 @@ static void hpet_setup_periodic(struct hpet_block *block, int timer,
 
 	unsigned long new_hpet_conf = HPET_ENABLE_INT | HPET_SET_CMP |
 				HPET_PERIODIC | HPET_ROUTE(gsi);
+	struct irq_info info;
+
+	memset(&info, 0, sizeof(info));
+	info.apic = io_apic_find(gsi);
+	info.pin = io_apic_pin(info.apic, gsi);
 
 	if (gsi < 16) {
 		new_hpet_conf |= HPET_EDGE;
 		default_timer_level = 0;
-		register_irq(irq, gsi, INT_EDGE, INT_ACTIVE_HIGH);
+		info.trigger = INT_EDGE;
+		info.polarity = INT_ACTIVE_HIGH;
 	} else {
 		new_hpet_conf |= HPET_LEVEL;
 		default_timer_level = 1;
-		register_irq(irq, gsi, INT_LEVEL, INT_ACTIVE_LOW);
+		info.trigger = INT_LEVEL;
+		info.polarity = INT_ACTIVE_LOW;
 	}
+
+	register_irq(irq, &info);
 
 	hpet_write(block->addr, TN_CONF(timer), new_hpet_conf);
 	hpet_write64(block->addr, TN_CMP(timer),

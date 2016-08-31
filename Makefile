@@ -77,11 +77,11 @@ $(ACPICA_OBJ): %.o: %.c
 		$(CFLAGS) -Wno-format -Wno-unused-parameter \
 		-Wno-format-pedantic -MD -c $< -o $@
 
-$(LIBC_C_OBJ): %.o: %.c
-	$(CC) -I$(LIBC_INC) $(CFLAGS) -MD -c $< -o $@
-
 $(LIBC_A_OBJ): %.o: %.S
 	$(CC) -D__ASM_FILE__ -g -MD -c $< -o $@
+
+$(LIBC_C_OBJ): %.o: %.c
+	$(CC) -I$(LIBC_INC) $(CFLAGS) -MD -c $< -o $@
 
 $(KERNEL_A_OBJ): %.o: %.S
 	$(CC) -D__ASM_FILE__ -g -MD -c $< -o $@

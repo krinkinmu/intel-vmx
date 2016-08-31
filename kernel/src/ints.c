@@ -36,14 +36,6 @@ struct idt_desc {
 	uint32_t reserved;
 } __attribute__((packed));
 
-struct irq_desc {
-	irq_handler_t handler;
-	struct io_apic *apic;
-	int pin;
-	int gsi;
-	int polarity;
-	int trigger;
-};
 
 static struct idt_desc idt[IDT_SIZE] __attribute__((aligned (16)));
 static struct irq_desc irq_desc[IDT_IRQ_END - IDT_IRQ_BEGIN];
@@ -145,59 +137,77 @@ void cpu_ints_setup(void)
 	__asm__ volatile ("lidt %0" : : "m"(ptr)); 
 }
 
-static void io_apic_pin_mask(struct io_apic *apic, int pin)
-{
-	io_apic_write(apic, IO_APIC_RDREG_LOW(pin), IO_APIC_MASK_PIN);
-}
-
-static void io_apic_pin_unmask(struct io_apic *apic, int pin)
-{
-	const unsigned long low = io_apic_read(apic, IO_APIC_RDREG_LOW(pin));
-
-	BUG_ON(!(low & IO_APIC_MASK_PIN));
-	io_apic_write(apic, IO_APIC_RDREG_LOW(pin), low & ~IO_APIC_MASK_PIN);
-}
-
 void activate_irq(int irq)
 {
 	struct irq_desc *desc = &irq_desc[irq];
 
 	BUG_ON(!desc->handler);
-	io_apic_pin_unmask(desc->apic, desc->pin);
+	BUG_ON(!desc->ops || !desc->ops->irq_unmask);
+	desc->ops->irq_unmask(desc);
 }
 
 void deactivate_irq(int irq)
 {
 	struct irq_desc *desc = &irq_desc[irq];
 
-	BUG_ON(!desc->handler);
-	io_apic_pin_mask(desc->apic, desc->pin);
+	BUG_ON(!desc->ops || !desc->ops->irq_mask);
+	desc->ops->irq_mask(desc);
 }
 
-void register_irq(int irq, int gsi, int trigger, int polarity)
+
+static void io_apic_mask(struct irq_desc *desc)
 {
-	BUG_ON(irq >= IDT_IRQ_END - IDT_IRQ_BEGIN);
-	struct irq_desc *desc = &irq_desc[irq];
-	struct io_apic *apic = io_apic_find(gsi);
+	struct io_apic *apic = desc->apic;
+	const int pin = desc->pin;
 
 	BUG_ON(!apic);
-	const int pin = io_apic_pin(apic, gsi);
-	const int vector = irq + IDT_IRQ_BEGIN;
-	const unsigned long low = IO_APIC_VECTOR(vector) | IO_APIC_LOWEST
-				| IO_APIC_LOGICAL
-				| (INT_ACTIVE_LOW == polarity ?
-				  IO_APIC_ACTIVE_LOW : IO_APIC_ACTIVE_HIGH)
-				| (INT_EDGE == trigger ?
-				  IO_APIC_EDGE : IO_APIC_LEVEL)
-				| IO_APIC_MASK_PIN;
-	const unsigned long high = IO_APIC_DESTINATION(0xff);
+	io_apic_write(apic, IO_APIC_RDREG_LOW(pin), IO_APIC_MASK_PIN);
+}
 
-	desc->apic = apic;
-	desc->pin = io_apic_pin(apic, gsi);
-	desc->gsi = gsi;
-	desc->trigger = trigger;
-	desc->polarity = polarity;
+static void io_apic_unmask(struct irq_desc *desc)
+{
+	struct io_apic *apic = desc->apic;
+	const int pin = desc->pin;
+	unsigned long low;
+
+	BUG_ON(!apic);
+	low = io_apic_read(apic, IO_APIC_RDREG_LOW(pin));
+	io_apic_write(apic, IO_APIC_RDREG_LOW(pin), low & ~IO_APIC_MASK_PIN);
+}
+
+static const struct irq_desc_ops io_apic_ops = {
+	.irq_mask = io_apic_mask,
+	.irq_unmask = io_apic_unmask
+};
+
+static void io_apic_setup_pin(struct io_apic *apic, int pin, int vector,
+			const struct irq_info *info)
+{
+	const unsigned long low = IO_APIC_VECTOR(vector) | IO_APIC_LOWEST
+				| IO_APIC_LOGICAL | IO_APIC_MASK_PIN
+				| (info->trigger == INT_EDGE ?
+				  IO_APIC_EDGE : IO_APIC_LEVEL)
+				| (info->polarity == INT_ACTIVE_LOW ?
+				  IO_APIC_ACTIVE_LOW : IO_APIC_ACTIVE_HIGH);
+	const unsigned long high = IO_APIC_DESTINATION(0xff);
 
 	io_apic_write(apic, IO_APIC_RDREG_LOW(pin), low);
 	io_apic_write(apic, IO_APIC_RDREG_HIGH(pin), high);
+}
+
+void register_irq(int irq, const struct irq_info *info)
+{
+	BUG_ON(irq >= IDT_IRQ_END - IDT_IRQ_BEGIN);
+	struct irq_desc *desc = &irq_desc[irq];
+	const int vector = irq + IDT_IRQ_BEGIN;
+	struct io_apic *apic = info->apic;
+
+	if (apic)
+		io_apic_setup_pin(apic, info->pin, vector, info);
+
+	desc->ops = (apic && !info->ops) ? &io_apic_ops : info->ops;
+	desc->apic = info->apic;
+	desc->pin = info->pin;
+	desc->trigger = info->trigger;
+	desc->polarity = info->polarity;
 }
