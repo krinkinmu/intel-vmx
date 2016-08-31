@@ -16,12 +16,6 @@
 #define IDT_EXCEPTION	(IDT_KERNEL_MODE | IDT_INT_GATE | IDT_PRESENT)
 #define IDT_IRQ		(IDT_KERNEL_MODE | IDT_INT_GATE | IDT_PRESENT)
 
-#define IDT_SIZE	33
-#define IDT_EXC_BEGIN	0
-#define IDT_EXC_END	32
-#define IDT_IRQ_BEGIN	32
-#define IDT_IRQ_END	IDT_SIZE
-
 struct idt_ptr {
 	uint16_t size;
 	uint64_t idt;
@@ -127,7 +121,7 @@ void ints_setup(void)
 	}
 }
 
-void cpu_ints_setup(void)
+static void idt_setup(void)
 {
 	const struct idt_ptr ptr = {
 		.size = sizeof(idt) - 1,
@@ -135,6 +129,19 @@ void cpu_ints_setup(void)
 	};
 
 	__asm__ volatile ("lidt %0" : : "m"(ptr)); 
+}
+
+static void local_apic_setup(void)
+{
+	const unsigned long spurious = local_apic_read(APIC_SPURIOUS);
+
+	local_apic_write(APIC_SPURIOUS, spurious | APIC_ENABLE);
+}
+
+void ints_cpu_setup(void)
+{
+	idt_setup();
+	local_apic_setup();
 }
 
 void activate_irq(int irq)
@@ -199,7 +206,7 @@ void register_irq(int irq, const struct irq_info *info)
 {
 	BUG_ON(irq >= IDT_IRQ_END - IDT_IRQ_BEGIN);
 	struct irq_desc *desc = &irq_desc[irq];
-	const int vector = irq + IDT_IRQ_BEGIN;
+	const int vector = IRQ_VECTOR(irq);
 	struct io_apic *apic = info->apic;
 
 	if (apic)

@@ -30,11 +30,12 @@ void main(const struct mboot_info *info)
 	acpi_early_setup();
 	apic_setup();
 	ints_setup();
-	cpu_ints_setup();
+	ints_cpu_setup();
+	local_int_enable();
 	time_setup();
+	time_cpu_setup();
 	smp_early_setup();
 	page_alloc_setup();
 	smp_setup();
-	local_int_enable();
 	while (1);
 }

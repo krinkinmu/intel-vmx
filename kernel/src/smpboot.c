@@ -29,8 +29,9 @@ static void ap_boot(void)
 	while (!ap_continue)
 		cpu_relax();
 
-	cpu_ints_setup();
+	ints_cpu_setup();
 	local_int_enable();
+	time_cpu_setup();
 	printf("ap started\n");
 	while (1);
 		cpu_relax();

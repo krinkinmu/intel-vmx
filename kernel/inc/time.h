@@ -6,9 +6,11 @@
    QEMU hpet implementation? */
 #define TIMER_TICK	100
 #define TIMER_IRQ	0
+#define TIMER_LOCAL_IRQ	1
 
 
 void time_setup(void);
+void time_cpu_setup(void);
 void udelay(unsigned long usec);
 unsigned long long current_time(void);
 

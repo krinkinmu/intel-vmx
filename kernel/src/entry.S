@@ -34,7 +34,8 @@
 	ISR(29) \
 	ISR(30) \
 	ISR(31) \
-	ISR(32)
+	ISR(32) \
+	ISR(33)
 
 #define NAME(num) entry ## num
 

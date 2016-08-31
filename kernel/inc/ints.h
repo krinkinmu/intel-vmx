@@ -8,6 +8,13 @@
 #define INT_EDGE	0
 #define INT_LEVEL	1
 
+#define IDT_SIZE	34
+#define IDT_EXC_BEGIN	0
+#define IDT_EXC_END	32
+#define IDT_IRQ_BEGIN	32
+#define IDT_IRQ_END	IDT_SIZE
+#define IRQ_VECTOR(x)	((x) + IDT_IRQ_BEGIN)
+
 struct frame {
 	uint64_t r11;
 	uint64_t r10;
@@ -67,6 +74,6 @@ void activate_irq(int irq);
 void deactivate_irq(int irq);
 
 void ints_setup(void);
-void cpu_ints_setup(void);
+void ints_cpu_setup(void);
 
 #endif /*__INTRRUPT_H__*/

@@ -13,6 +13,17 @@
 #define APIC_ICR_LEVEL		(1ul << 15)
 #define APIC_ICR_EDGE		(0ul << 15)
 
+#define APIC_TIMER_LVT		(0x320)
+#define APIC_TIMER_DIV		(0x3e0)
+#define APIC_TIMER_INIT		(0x380)
+#define APIC_TIMER_COUNT	(0x390)
+#define APIC_TIMER_MODE(x)	(((x) & 3) << 17)
+#define APIC_TIMER_ONE_SHOT	APIC_TIMER_MODE(0)
+#define APIC_TIMER_PERIODIC	APIC_TIMER_MODE(1)
+
+#define APIC_SPURIOUS		(0xf0)
+#define APIC_ENABLE		(1ul << 8)
+
 #define IO_APIC_VECTOR(x)	((x) & 0xfful)
 
 #define IO_APIC_DELIVERY_MODE(x)	(((x) & 0x7ul) << 8)

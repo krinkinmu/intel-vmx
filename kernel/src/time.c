@@ -42,6 +42,7 @@ static int hpet_blocks;
 static struct hpet_block *default_block;
 static int default_timer, default_timer_level;
 static unsigned long long ticks_elapsed;
+static unsigned long apic_ticks;
 
 
 unsigned long long current_time(void)
@@ -333,7 +334,60 @@ void udelay(unsigned long usec)
 	__udelay(default_block, usec);
 }
 
+static void apic_timer_calibrate(void)
+{
+	const unsigned long lvt = IRQ_VECTOR(TIMER_LOCAL_IRQ)
+				| APIC_TIMER_ONE_SHOT;
+
+	local_apic_write(APIC_TIMER_INIT, 0);
+	local_apic_write(APIC_TIMER_DIV, 11);
+	local_apic_write(APIC_TIMER_LVT, lvt);
+	local_apic_write(APIC_TIMER_INIT, 0xfffffffful);
+
+	udelay(TIMER_TICK * 1000);
+
+	const unsigned long count = local_apic_read(APIC_TIMER_COUNT);
+
+	local_apic_write(APIC_TIMER_INIT, 0);
+	apic_ticks = 0xfffffffful - count;
+}
+
+static void apic_timer_handler(void)
+{
+	printf("tick from %d\n", local_apic_id());
+}
+
+static void apic_timer_ints_setup(void)
+{
+	struct irq_info info;
+
+	memset(&info, 0, sizeof(info));
+	register_irq(TIMER_LOCAL_IRQ, &info);
+	register_irq_handler(TIMER_LOCAL_IRQ, &apic_timer_handler); 	
+}
+
+static void apic_timer_setup(void)
+{
+	apic_timer_calibrate();
+	apic_timer_ints_setup();
+}
+
+static void apic_timer_start(void)
+{
+	const unsigned long lvt = IRQ_VECTOR(TIMER_LOCAL_IRQ)
+				| APIC_TIMER_PERIODIC;
+
+	local_apic_write(APIC_TIMER_LVT, lvt);
+	local_apic_write(APIC_TIMER_INIT, apic_ticks);
+}
+
 void time_setup(void)
 {
 	hpet_setup();
+	apic_timer_setup();
+}
+
+void time_cpu_setup(void)
+{
+	apic_timer_start();
 }
