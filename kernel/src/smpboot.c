@@ -4,6 +4,7 @@
 #include <ioport.h>
 #include <apic.h>
 #include <time.h>
+#include <ints.h>
 #include <cpu.h>
 
 #define CMOS_PORT(x) (0x70 + x)
@@ -28,6 +29,8 @@ static void ap_boot(void)
 	while (!ap_continue)
 		cpu_relax();
 
+	cpu_ints_setup();
+	local_int_enable();
 	printf("ap started\n");
 	while (1);
 		cpu_relax();
