@@ -32,6 +32,9 @@ struct hpet_block {
 #define HPET_PERIODIC	(1ul << 3)
 #define HPET_SET_CMP	(1ul << 6)
 #define HPET_ROUTE(x)	(((unsigned long)(x) & 31ul) << 9)
+#define HPET_CAP	0x00
+#define HPET_CONF	0x10
+#define HPET_COUNT	0xf0
 
 static struct hpet_block *hpet_block;
 static int hpet_blocks;
@@ -108,17 +111,17 @@ static unsigned long long hpet_overflow(int width, unsigned long long period)
 
 static int hpet_timers(const struct hpet_block *block)
 {
-	return 1 + ((hpet_read(block->addr, 0) >> 8) & 0xf);
+	return 1 + ((hpet_read(block->addr, HPET_CAP) >> 8) & 0xf);
 }
 
 static void hpet_stop(struct hpet_block *block)
 {
-	hpet_write(block->addr, 0x10, 0);
+	hpet_write(block->addr, HPET_CONF, 0);
 }
 
 static void hpet_start(struct hpet_block *block)
 {
-	hpet_write(block->addr, 0x10, 1);
+	hpet_write(block->addr, HPET_CONF, 1);
 }
 
 static void hpet_block_reset(struct hpet_block *block)
@@ -126,7 +129,7 @@ static void hpet_block_reset(struct hpet_block *block)
 	const int timers = hpet_timers(block); 
 
 	hpet_stop(block);
-	hpet_write64(block->addr, 0xf0, 0);
+	hpet_write64(block->addr, HPET_COUNT, 0);
 
 	for (int i = 0; i != timers; ++i)
 		/* TODO: this is bad, since we don't check whether zero
@@ -136,7 +139,7 @@ static void hpet_block_reset(struct hpet_block *block)
 
 static void hpet_block_setup(uintptr_t addr)
 {
-	const unsigned long long gen_cap = hpet_read64(addr, 0);
+	const unsigned long long gen_cap = hpet_read64(addr, HPET_CAP);
 	const unsigned long period = gen_cap >> 32;
 	const int cnt_width = (gen_cap ^ (1 << 13)) ? 64 : 32;
 	const unsigned long long overflow = hpet_overflow(cnt_width, period);
@@ -197,7 +200,7 @@ static void hpet_setup_periodic(struct hpet_block *block, int timer,
 
 	hpet_write(block->addr, TN_CONF(timer), new_hpet_conf);
 	hpet_write64(block->addr, TN_CMP(timer),
-				hpet_read64(block->addr, 0xf0) + ticks);
+				hpet_read64(block->addr, HPET_COUNT) + ticks);
 	hpet_write64(block->addr, TN_CMP(timer), ticks);
 }
 
@@ -280,14 +283,14 @@ static void wait_loop(const struct hpet_block *timer, unsigned long long from,
 
 	if (until > from) {
 		while (1) {
-			clk = hpet_read64(timer->addr, 0xf0);
+			clk = hpet_read64(timer->addr, HPET_COUNT);
 			if (clk > until || clk < from)
 				break;
 			cpu_relax();
 		}
 	} else {
 		while (1) {
-			clk = hpet_read64(timer->addr, 0xf0);
+			clk = hpet_read64(timer->addr, HPET_COUNT);
 			if (clk < from && clk > until)
 				break;
 			cpu_relax();
@@ -298,7 +301,7 @@ static void wait_loop(const struct hpet_block *timer, unsigned long long from,
 static void __udelay(const struct hpet_block *timer, unsigned long usec)
 {
 	const unsigned long long mask = (1ull << (timer->cnt_width - 1));
-	unsigned long long start = hpet_read64(timer->addr, 0xf0);
+	unsigned long long start = hpet_read64(timer->addr, HPET_COUNT);
 
 	while (usec >= timer->overflow) {
 		wait_loop(timer, start, start ^ mask);
