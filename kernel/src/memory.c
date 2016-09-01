@@ -184,7 +184,12 @@ void page_alloc_setup(void)
 		struct memory_node *node = CONTAINER_OF(ptr, struct memory_node,
 					link.ll);
 
-		page_alloc_zone_setup(node->begin, node->end);
+		if (node->end <= LOW_MEMORY || node->begin >= LOW_MEMORY) {
+			page_alloc_zone_setup(node->begin, node->end);
+		} else {
+			page_alloc_zone_setup(node->begin, LOW_MEMORY);
+			page_alloc_zone_setup(LOW_MEMORY, node->end);
+		}
 		ptr = rb_next(ptr);
 	}
 
@@ -194,7 +199,12 @@ void page_alloc_setup(void)
 		struct memory_node *node = CONTAINER_OF(ptr, struct memory_node,
 					link.ll);
 
-		page_alloc_zone_free(node->begin, node->end);
+		if (node->end <= LOW_MEMORY || node->begin >= LOW_MEMORY) {
+			page_alloc_zone_free(node->begin, node->end);
+		} else {
+			page_alloc_zone_free(node->begin, LOW_MEMORY);
+			page_alloc_zone_free(LOW_MEMORY, node->end);
+		}
 		ptr = rb_next(ptr);
 	}
 
@@ -239,7 +249,7 @@ static struct page *page_alloc_zone(struct page_alloc_zone *zone, int order)
 	return page;
 }
 
-struct page *__page_alloc(int order)
+struct page *__page_alloc(int order, unsigned long flags)
 {
 	if (order > MAX_ORDER)
 		return 0;
@@ -250,6 +260,12 @@ struct page *__page_alloc(int order)
 	for (ptr = head->next; ptr != head; ptr = ptr->next) {
 		struct page_alloc_zone *zone = CONTAINER_OF(ptr,
 					struct page_alloc_zone, ll);
+
+		if ((flags & PA_LOW_MEM) != 0) {
+			if (zone->begin >= (LOW_MEMORY >> PAGE_SHIFT))
+				continue;
+		}
+
 		struct page *page = page_alloc_zone(zone, order);
 
 		if (page)
@@ -259,7 +275,7 @@ struct page *__page_alloc(int order)
 	return 0;
 }
 
-uintptr_t page_alloc(int order)
+uintptr_t page_alloc(int order, unsigned long flags)
 {
 	if (order > MAX_ORDER)
 		return 0;
@@ -270,6 +286,12 @@ uintptr_t page_alloc(int order)
 	for (ptr = head->next; ptr != head; ptr = ptr->next) {
 		struct page_alloc_zone *zone = CONTAINER_OF(ptr,
 					struct page_alloc_zone, ll);
+
+		if ((flags & PA_LOW_MEM) != 0) {
+			if (zone->begin >= (LOW_MEMORY >> PAGE_SHIFT))
+				continue;
+		}
+
 		struct page *page = page_alloc_zone(zone, order);
 
 		if (!page)
