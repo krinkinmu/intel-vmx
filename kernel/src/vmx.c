@@ -57,7 +57,6 @@ static void vmxon_check(void)
 	const unsigned long long cr0_fixed1 = read_msr(IA32_VMX_CR0_FIXED1);
 	const unsigned long long cr0 = read_cr0();
 
-	printf("cr0_fixed0 0x%llx, cr0_fixed1 0x%llx, cr0 0x%llx\n", cr0_fixed0, cr0_fixed1, cr0);
 	BUG_ON((cr0_fixed0 & cr0) != cr0_fixed0);
 	BUG_ON((~cr0_fixed1 & cr0) != 0);
 
@@ -65,7 +64,6 @@ static void vmxon_check(void)
 	const unsigned long long cr4_fixed1 = read_msr(IA32_VMX_CR4_FIXED1);
 	const unsigned long long cr4 = read_cr4();
 
-	printf("cr4_fixed1 0x%llx, cr4 0x%llx\n", cr4_fixed1, cr4);
 	BUG_ON((cr4_fixed0 & cr4) != cr4_fixed0);
 	BUG_ON((~cr4_fixed1 & cr4) != 0);
 	BUG_ON((read_msr(IA32_FEATURE_CONTROL) & 1) != 1);

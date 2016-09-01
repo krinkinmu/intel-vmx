@@ -80,8 +80,9 @@ gdt_ptr:
 
 	/* Enable paging */
 #define CR0_PG      (1 << 31)
+#define CR0_NE      (1 << 5)
 	movl %cr0, %eax
-	orl $CR0_PG, %eax
+	orl $(CR0_PG | CR0_NE), %eax
 	movl %eax, %cr0
 
 	/* Enable 64bit gdt */

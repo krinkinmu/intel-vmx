@@ -28,8 +28,9 @@ tr_begin:
 
 #define CR0_PG (1 << 31)
 #define CR0_PM (1 << 0)
+#define CR0_NE (1 << 5)
 	movl %cr0, %eax
-	orl $(CR0_PG | CR0_PM), %eax
+	orl $(CR0_PG | CR0_PM | CR0_NE), %eax
 	movl %eax, %cr0
 
 	movl stackend - tr_base, %eax
