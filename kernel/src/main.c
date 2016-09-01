@@ -7,6 +7,7 @@
 #include <ints.h>
 #include <smpboot.h>
 #include <memory.h>
+#include <vmx.h>
 
 static void acpi_early_setup(void)
 {
@@ -37,5 +38,7 @@ void main(const struct mboot_info *info)
 	smp_early_setup();
 	page_alloc_setup();
 	smp_setup();
+	vmx_setup();
+	vmx_enter();
 	while (1);
 }
