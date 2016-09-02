@@ -39,6 +39,8 @@
 #define IA32_VMX_EPT_VPID	0x48c
 #define IA32_VMX_VMFUNC		0x491
 #define IA32_FEATURE_CONTROL	0x03a
+#define IA32_FC_LOCK		(1ull << 0)
+#define IA32_FC_NATIVE_VMX	(1ull << 2)
 
 static uintptr_t vmxon_addr;
 
@@ -114,6 +116,15 @@ static int vmx_supported(void)
 void vmx_setup(void)
 {
 	BUG_ON(!vmx_supported());
+
+	const unsigned long long feature = read_msr(IA32_FEATURE_CONTROL);
+	const unsigned long long mask = IA32_FC_LOCK | IA32_FC_NATIVE_VMX;
+
+	if ((feature & mask) != mask) {
+		write_msr(IA32_FEATURE_CONTROL, feature | mask);
+		BUG_ON((read_msr(IA32_FEATURE_CONTROL) & mask) != mask);
+	}
+
 	BUG_ON(!(vmxon_addr = page_alloc(1, PA_LOW_MEM)));
 	vmxon_setup((volatile void *)vmxon_addr);
 }
