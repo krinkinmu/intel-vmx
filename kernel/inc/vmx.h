@@ -15,9 +15,15 @@
 #define VMCS_WIDTH_32		VMCS_WIDTH(2)
 #define VMCS_WIDTH_NATIVE	VMCS_WIDTH(3)
 
+#define VMCS_PINBASED_CTLS	(VMCS_WIDTH(32) | VMCS_INDEX(0))
+#define VMCS_PROCBASED_CTLS	(VMCS_WIDTH(32) | VMCS_INDEX(1))
+#define VMCS_EXIT_CTLS		(VMCS_WIDTH(32) | VMCS_INDEX(6))
+#define VMCS_ENTRY_CTLS		(VMCS_WIDTH(32) | VMCS_INDEX(9))
+
 uintptr_t vmcs_alloc(void);
 void vmcs_free(uintptr_t vmcs);
 
+void vmcs_reset(void);
 int vmcs_setup(uintptr_t vmcs);
 int vmcs_release(uintptr_t vmcs);
 

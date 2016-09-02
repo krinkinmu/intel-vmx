@@ -135,12 +135,6 @@ void vmx_setup(void)
 	vmxon_setup((volatile void *)vmxon_addr);
 }
 
-static void vmcs_default_setup(uintptr_t vmcs)
-{
-	BUG_ON(vmcs_release(vmcs) < 0);
-	/* TODO: set capabilities */
-}
-
 uintptr_t vmcs_alloc(void)
 {
 	const uintptr_t vmcs = page_alloc(0, PA_LOW_MEM);
@@ -149,7 +143,7 @@ uintptr_t vmcs_alloc(void)
 	BUG_ON(!ptr);
 	ptr[0] = vmx_revision();
 	ptr[1] = 0;
-	vmcs_default_setup(vmcs);
+	BUG_ON(vmcs_release(vmcs) < 0);
 
 	return vmcs;
 }
@@ -168,6 +162,65 @@ int vmcs_setup(uintptr_t vmcs)
 		: "m"(vmcs)
 		: "memory", "cc");
 	return (rflags & (RFLAGS_CF | RFLAGS_ZF)) ? -1 : 0;
+}
+
+static unsigned long ___vmcs_defctls(unsigned long low,
+			unsigned long tlow, unsigned long thigh)
+{
+	const unsigned long var = ~tlow & thigh;
+
+	return (tlow & ~var) | (low & var);
+}
+
+static unsigned long __vmcs_defctls(unsigned long long ctls,
+			unsigned long long true_ctls)
+{
+	const unsigned long tlow = true_ctls & 0xfffffffful;
+	const unsigned long thigh = (true_ctls >> 32) & 0xfffffffful;
+	const unsigned long low = ctls & 0xfffffffful;
+
+	return ___vmcs_defctls(low, tlow, thigh);
+}
+
+static unsigned long vmcs_defctls(unsigned long long ctls)
+{
+	return __vmcs_defctls(ctls, 0xffffffffull << 32);
+}
+
+void vmcs_reset(void)
+{
+	const unsigned long long basic = read_msr(IA32_VMX_BASIC);
+	const unsigned long long pinbased_ctls =
+				read_msr(IA32_VMX_PINBASED_CTLS);
+	const unsigned long long procbased_ctls =
+				read_msr(IA32_VMX_PROCBASED_CTLS);
+	const unsigned long long exit_ctls = read_msr(IA32_VMX_EXIT_CTLS);
+	const unsigned long long entry_ctls = read_msr(IA32_VMX_ENTRY_CTLS);
+
+	if (!(basic & (1ull << 5))) {
+		vmcs_write(VMCS_PINBASED_CTLS, vmcs_defctls(pinbased_ctls));
+		vmcs_write(VMCS_PROCBASED_CTLS, vmcs_defctls(procbased_ctls));
+		vmcs_write(VMCS_EXIT_CTLS, vmcs_defctls(exit_ctls));
+		vmcs_write(VMCS_ENTRY_CTLS, vmcs_defctls(entry_ctls));
+	} else {
+		const unsigned long long true_pinbased_ctls =
+					read_msr(IA32_VMX_TRUE_PINBASED_CTLS);
+		const unsigned long long true_procbased_ctls =
+					read_msr(IA32_VMX_TRUE_PROCBASED_CTLS);
+		const unsigned long long true_exit_ctls =
+					read_msr(IA32_VMX_TRUE_EXIT_CTLS);
+		const unsigned long long true_entry_ctls =
+					read_msr(IA32_VMX_TRUE_ENTRY_CTLS);
+
+		vmcs_write(VMCS_PINBASED_CTLS, __vmcs_defctls(pinbased_ctls,
+					true_pinbased_ctls));
+		vmcs_write(VMCS_PROCBASED_CTLS, __vmcs_defctls(procbased_ctls,
+					true_procbased_ctls));
+		vmcs_write(VMCS_EXIT_CTLS, __vmcs_defctls(exit_ctls,
+					true_exit_ctls));
+		vmcs_write(VMCS_ENTRY_CTLS, __vmcs_defctls(entry_ctls,
+					true_entry_ctls));
+	}
 }
 
 int vmcs_release(uintptr_t vmcs)
