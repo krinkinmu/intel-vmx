@@ -45,12 +45,18 @@
 static uintptr_t vmxon_addr;
 
 
-static void vmxon_setup(volatile void *vmxon_ptr)
+static unsigned long vmx_revision(void)
 {
 	const unsigned long long vmx_basic = read_msr(IA32_VMX_BASIC);
+
+	return vmx_basic & ((1ul << 31) - 1);
+}
+
+static void vmxon_setup(volatile void *vmxon_ptr)
+{
 	volatile uint32_t *ptr = vmxon_ptr;
 
-	*ptr = vmx_basic & ((1ul << 31) - 1);
+	*ptr = vmx_revision();
 }
 
 static void vmxon_check(void)
@@ -127,4 +133,96 @@ void vmx_setup(void)
 
 	BUG_ON(!(vmxon_addr = page_alloc(1, PA_LOW_MEM)));
 	vmxon_setup((volatile void *)vmxon_addr);
+}
+
+static void vmcs_default_setup(uintptr_t vmcs)
+{
+	BUG_ON(vmcs_release(vmcs) < 0);
+	/* TODO: set capabilities */
+}
+
+uintptr_t vmcs_alloc(void)
+{
+	const uintptr_t vmcs = page_alloc(0, PA_LOW_MEM);
+	volatile uint32_t *ptr = (volatile uint32_t *)vmcs;
+
+	BUG_ON(!ptr);
+	ptr[0] = vmx_revision();
+	ptr[1] = 0;
+	vmcs_default_setup(vmcs);
+
+	return vmcs;
+}
+
+void vmcs_free(uintptr_t vmcs)
+{
+	page_free(vmcs, 0);
+}
+
+int vmcs_setup(uintptr_t vmcs)
+{
+	unsigned long rflags;
+
+	__asm__ ("vmptrld %1; pushfq; pop %0"
+		: "=m"(rflags)
+		: "m"(vmcs)
+		: "memory", "cc");
+	return (rflags & (RFLAGS_CF | RFLAGS_ZF)) ? -1 : 0;
+}
+
+int vmcs_release(uintptr_t vmcs)
+{
+	unsigned long rflags;
+
+	__asm__ ("vmclear %1; pushfq; pop %0"
+		: "=m"(rflags)
+		: "m"(vmcs)
+		: "memory", "cc");
+	return (rflags & (RFLAGS_CF | RFLAGS_ZF)) ? -1 : 0;
+}
+
+int vmcs_launch(void)
+{
+	unsigned long rflags;
+
+	__asm__ ("vmlaunch; pushfq; pop %0"
+		: "=m"(rflags)
+		:
+		: "memory", "cc");
+	return (rflags & (RFLAGS_CF | RFLAGS_ZF)) ? -1 : 0;
+}
+
+int vmcs_resume(void)
+{
+	unsigned long rflags;
+
+	__asm__ ("vmresume; pushfq; pop %0"
+		: "=m"(rflags)
+		:
+		: "memory", "cc");
+	return (rflags & (RFLAGS_CF | RFLAGS_ZF)) ? -1 : 0;
+}
+
+void vmcs_write(unsigned long field, unsigned long long val)
+{
+	unsigned long rflags;
+
+	__asm__ ("vmwrite %1, %2; pushfq; pop %0"
+		: "=r"(rflags)
+		: "r"(val), "r"(field)
+		: "memory", "cc");
+	BUG_ON((rflags & (RFLAGS_CF | RFLAGS_ZF)));
+}
+
+unsigned long long vmcs_read(unsigned long field)
+{
+	unsigned long long val;
+	unsigned long rflags;
+
+	__asm__ ("vmread %2, %1; pushfq; pop %0"
+		: "=r"(rflags), "=r"(val)
+		: "r"(field)
+		: "memory", "cc");
+	BUG_ON((rflags & (RFLAGS_CF | RFLAGS_ZF)));
+	return val;
 }
