@@ -1,6 +1,7 @@
 #include <vmx.h>
 #include <debug.h>
 #include <memory.h>
+#include <string.h>
 #include <cpu.h>
 
 
@@ -42,6 +43,8 @@
 #define IA32_FC_LOCK		(1ull << 0)
 #define IA32_FC_NATIVE_VMX	(1ull << 2)
 
+int __vmcs_launch(struct vmx_guest_state *state);
+int __vmcs_resume(struct vmx_guest_state *state);
 static uintptr_t vmxon_addr;
 
 
@@ -135,34 +138,62 @@ void vmx_setup(void)
 	vmxon_setup((volatile void *)vmxon_addr);
 }
 
-uintptr_t vmcs_alloc(void)
+static int __vmcs_load(unsigned long vmcs)
 {
-	const uintptr_t vmcs = page_alloc(0, PA_LOW_MEM);
-	volatile uint32_t *ptr = (volatile uint32_t *)vmcs;
+	unsigned char err;
 
-	BUG_ON(!ptr);
-	ptr[0] = vmx_revision();
-	ptr[1] = 0;
-	BUG_ON(vmcs_release(vmcs) < 0);
-
-	return vmcs;
-}
-
-void vmcs_free(uintptr_t vmcs)
-{
-	page_free(vmcs, 0);
-}
-
-int vmcs_setup(uintptr_t vmcs)
-{
-	unsigned long rflags;
-
-	__asm__ ("vmptrld %1; pushfq; pop %0"
-		: "=m"(rflags)
+	__asm__ ("vmptrld %1; setna %0"
+		: "=r"(err)
 		: "m"(vmcs)
 		: "memory", "cc");
-	return (rflags & (RFLAGS_CF | RFLAGS_ZF)) ? -1 : 0;
+	return err ? -1 : 0;
 }
+
+static int __vmcs_store(unsigned long *vmcs)
+{
+	unsigned char err;
+
+	__asm__("vmptrst %1; setna %0"
+		: "=r"(err), "=m"(*vmcs)
+		:
+		: "memory", "cc");
+	return err ? -1 : 0;
+}
+
+static int __vmcs_clear(unsigned long vmcs)
+{
+	unsigned char err;
+
+	__asm__ ("vmclear %1; setna %0"
+		: "=r"(err)
+		: "m"(vmcs)
+		: "memory", "cc");
+	return err ? -1 : 0;
+}
+
+static int __vmcs_write(unsigned long field, unsigned long long val)
+{
+	unsigned char err;
+
+	__asm__("vmwrite %1, %2; setna %0"
+		: "=r"(err)
+		: "r"(val), "r"(field)
+		: "memory", "cc");
+	return err ? -1 : 0;
+}
+
+/*
+static int __vmcs_read(unsigned long field, unsigned long long *val)
+{
+	unsigned char err;
+
+	__asm__ ("vmread %2, %1; setna %0"
+		: "=r"(err), "=r"(*val)
+		: "r"(field)
+		: "memory", "cc");
+	return err ? -1 : 0;
+}
+*/
 
 static unsigned long ___vmcs_defctls(unsigned long low,
 			unsigned long tlow, unsigned long thigh)
@@ -187,7 +218,7 @@ static unsigned long vmcs_defctls(unsigned long long ctls)
 	return __vmcs_defctls(ctls, 0xffffffffull << 32);
 }
 
-void vmcs_reset(void)
+static void vmcs_set_defctrls(void)
 {
 	const unsigned long long basic = read_msr(IA32_VMX_BASIC);
 	const unsigned long long pinbased_ctls =
@@ -198,10 +229,10 @@ void vmcs_reset(void)
 	const unsigned long long entry_ctls = read_msr(IA32_VMX_ENTRY_CTLS);
 
 	if (!(basic & (1ull << 5))) {
-		vmcs_write(VMCS_PINBASED_CTLS, vmcs_defctls(pinbased_ctls));
-		vmcs_write(VMCS_PROCBASED_CTLS, vmcs_defctls(procbased_ctls));
-		vmcs_write(VMCS_EXIT_CTLS, vmcs_defctls(exit_ctls));
-		vmcs_write(VMCS_ENTRY_CTLS, vmcs_defctls(entry_ctls));
+		__vmcs_write(VMCS_PINBASED_CTLS, vmcs_defctls(pinbased_ctls));
+		__vmcs_write(VMCS_PROCBASED_CTLS, vmcs_defctls(procbased_ctls));
+		__vmcs_write(VMCS_VMEXIT_CTLS, vmcs_defctls(exit_ctls));
+		__vmcs_write(VMCS_VMENTRY_CTLS, vmcs_defctls(entry_ctls));
 	} else {
 		const unsigned long long true_pinbased_ctls =
 					read_msr(IA32_VMX_TRUE_PINBASED_CTLS);
@@ -212,48 +243,107 @@ void vmcs_reset(void)
 		const unsigned long long true_entry_ctls =
 					read_msr(IA32_VMX_TRUE_ENTRY_CTLS);
 
-		vmcs_write(VMCS_PINBASED_CTLS, __vmcs_defctls(pinbased_ctls,
+		__vmcs_write(VMCS_PINBASED_CTLS, __vmcs_defctls(pinbased_ctls,
 					true_pinbased_ctls));
-		vmcs_write(VMCS_PROCBASED_CTLS, __vmcs_defctls(procbased_ctls,
+		__vmcs_write(VMCS_PROCBASED_CTLS, __vmcs_defctls(procbased_ctls,
 					true_procbased_ctls));
-		vmcs_write(VMCS_EXIT_CTLS, __vmcs_defctls(exit_ctls,
+		__vmcs_write(VMCS_VMEXIT_CTLS, __vmcs_defctls(exit_ctls,
 					true_exit_ctls));
-		vmcs_write(VMCS_ENTRY_CTLS, __vmcs_defctls(entry_ctls,
+		__vmcs_write(VMCS_VMENTRY_CTLS, __vmcs_defctls(entry_ctls,
 					true_entry_ctls));
 	}
 }
 
-int vmcs_release(uintptr_t vmcs)
+static uintptr_t vmcs_alloc(void)
 {
-	unsigned long rflags;
+	const uintptr_t vmcs = page_alloc(0, PA_LOW_MEM);
+	volatile uint32_t *ptr = (volatile uint32_t *)vmcs;
 
-	__asm__ ("vmclear %1; pushfq; pop %0"
-		: "=m"(rflags)
-		: "m"(vmcs)
-		: "memory", "cc");
-	return (rflags & (RFLAGS_CF | RFLAGS_ZF)) ? -1 : 0;
+	BUG_ON(!ptr);
+	memset((void *)ptr, 0, PAGE_SIZE);
+	ptr[0] = vmx_revision();
+	ptr[1] = 0;
+
+	return vmcs;
 }
 
-void vmcs_write(unsigned long field, unsigned long long val)
+static void vmcs_free(uintptr_t vmcs)
 {
-	unsigned long rflags;
-
-	__asm__ ("vmwrite %1, %2; pushfq; pop %0"
-		: "=r"(rflags)
-		: "r"(val), "r"(field)
-		: "memory", "cc");
-	BUG_ON((rflags & (RFLAGS_CF | RFLAGS_ZF)));
+	page_free(vmcs, 0);
 }
 
-unsigned long long vmcs_read(unsigned long field)
+void vmx_guest_setup(struct vmx_guest *guest)
 {
-	unsigned long long val;
-	unsigned long rflags;
+	memset(guest, 0, sizeof(*guest));
+}
 
-	__asm__ ("vmread %2, %1; pushfq; pop %0"
-		: "=r"(rflags), "=r"(val)
-		: "r"(field)
-		: "memory", "cc");
-	BUG_ON((rflags & (RFLAGS_CF | RFLAGS_ZF)));
-	return val;
+void vmx_guest_release(struct vmx_guest *guest)
+{
+	vmcs_free(guest->vmcs);
+	memset(guest, 0, sizeof(*guest));
+}
+
+static void vmx_guest_first_setup(struct vmx_guest *guest)
+{
+	extern char tss[];
+	struct desc_ptr ptr;
+
+	guest->vmcs = vmcs_alloc();
+	BUG_ON(__vmcs_clear(guest->vmcs) < 0);
+	BUG_ON(__vmcs_load(guest->vmcs) < 0);
+	vmcs_set_defctrls();
+	BUG_ON(__vmcs_write(VMCS_GUEST_RIP, guest->entry) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_RSP, guest->stack) < 0);
+	BUG_ON(__vmcs_write(VMCS_CR3_TARGET_COUNT, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_VMEXIT_MSR_STORE_COUNT, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_VMEXIT_MSR_LOAD_COUNT, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_VMENTRY_MSR_LOAD_COUNT, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_CR0, read_cr0()) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_CR3, read_cr3()) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_CR4, read_cr4()) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_IA32_SYSENTER_ESP, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_IA32_SYSENTER_EIP, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_ES, KERNEL_DATA) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_CS, KERNEL_CODE) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_SS, KERNEL_DATA) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_DS, KERNEL_DATA) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_FS, KERNEL_DATA) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_FS_BASE, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_GS, KERNEL_DATA) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_GS_BASE, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_TR, KERNEL_TSS) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_TR_BASE, (uintptr_t)tss) < 0);
+	read_gdt(&ptr);
+	BUG_ON(__vmcs_write(VMCS_HOST_GDTR_BASE, ptr.base) < 0);
+	read_idt(&ptr);
+	BUG_ON(__vmcs_write(VMCS_HOST_IDTR_BASE, ptr.base) < 0);
+}
+
+static void vmx_guest_setup_current(struct vmx_guest *guest)
+{
+	if (!guest->vmcs) {
+		vmx_guest_first_setup(guest);
+		return;
+	}
+
+	unsigned long vmcs;
+
+	BUG_ON(__vmcs_store(&vmcs) < 0);
+	if (vmcs != guest->vmcs) {
+		guest->launched = 0;
+		BUG_ON(__vmcs_clear(guest->vmcs) < 0);
+		BUG_ON(__vmcs_load(guest->vmcs) < 0);
+	}
+}
+
+void vmcs_guest_run(struct vmx_guest *guest)
+{
+	vmx_guest_setup_current(guest);
+
+	if (guest->launched) {
+		BUG_ON(__vmcs_resume(&guest->state) < 0);
+	} else {
+		guest->launched = 1;
+		BUG_ON(__vmcs_launch(&guest->state) < 0);
+	}
 }
