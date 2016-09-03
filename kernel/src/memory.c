@@ -336,6 +336,9 @@ static void page_free_zone(struct page_alloc_zone *zone, struct page *page, int 
 
 void page_free(uintptr_t addr, int order)
 {
+	if (!addr)
+		return;
+
 	const uintptr_t idx = addr >> PAGE_SHIFT;
 	struct page_alloc_zone *zone = page_alloc_zone_find(idx);
 
