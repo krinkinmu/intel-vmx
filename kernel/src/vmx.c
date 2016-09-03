@@ -234,28 +234,6 @@ int vmcs_release(uintptr_t vmcs)
 	return (rflags & (RFLAGS_CF | RFLAGS_ZF)) ? -1 : 0;
 }
 
-int vmcs_launch(void)
-{
-	unsigned long rflags;
-
-	__asm__ ("vmlaunch; pushfq; pop %0"
-		: "=m"(rflags)
-		:
-		: "memory", "cc");
-	return (rflags & (RFLAGS_CF | RFLAGS_ZF)) ? -1 : 0;
-}
-
-int vmcs_resume(void)
-{
-	unsigned long rflags;
-
-	__asm__ ("vmresume; pushfq; pop %0"
-		: "=m"(rflags)
-		:
-		: "memory", "cc");
-	return (rflags & (RFLAGS_CF | RFLAGS_ZF)) ? -1 : 0;
-}
-
 void vmcs_write(unsigned long field, unsigned long long val)
 {
 	unsigned long rflags;

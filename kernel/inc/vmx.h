@@ -20,6 +20,23 @@
 #define VMCS_EXIT_CTLS		(VMCS_WIDTH(32) | VMCS_INDEX(6))
 #define VMCS_ENTRY_CTLS		(VMCS_WIDTH(32) | VMCS_INDEX(9))
 
+struct vmx_guest_state {
+	uint64_t rax;
+	uint64_t rbx;
+	uint64_t rcx;
+	uint64_t rbp;
+	uint64_t rsi;
+	uint64_t rdi;
+	uint64_t r8;
+	uint64_t r9;
+	uint64_t r10;
+	uint64_t r11;
+	uint64_t r12;
+	uint64_t r13;
+	uint64_t r14;
+	uint64_t r15;
+} __attribute__((packed));
+
 uintptr_t vmcs_alloc(void);
 void vmcs_free(uintptr_t vmcs);
 
@@ -27,8 +44,8 @@ void vmcs_reset(void);
 int vmcs_setup(uintptr_t vmcs);
 int vmcs_release(uintptr_t vmcs);
 
-int vmcs_launch(void);
-int vmcs_resume(void);
+int vmcs_launch(struct vmx_guest_state *state);
+int vmcs_resume(struct vmx_guest_state *state);
 
 void vmcs_write(unsigned long field, unsigned long long val);
 unsigned long long vmcs_read(unsigned long field);
