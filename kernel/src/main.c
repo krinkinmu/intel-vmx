@@ -5,6 +5,7 @@
 #include <time.h>
 #include <apic.h>
 #include <ints.h>
+#include <cpu.h>
 #include <smpboot.h>
 #include <memory.h>
 #include <vmx.h>
@@ -33,6 +34,8 @@ void main(const struct mboot_info *info)
 	ints_setup();
 	ints_cpu_setup();
 	local_int_enable();
+	tss_setup();
+	tss_cpu_setup();
 	time_setup();
 	time_cpu_setup();
 	smp_early_setup();

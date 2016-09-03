@@ -23,10 +23,46 @@ multiboot_header:
 	.long start32
 
 	.align 16
+	.global tss
+tss:
+tss_begin:
+	.space 105
+tss_end:
+
+#define DESC32(base, limit, flags) \
+	((((base) & 0x00ffffff) << 16) | \
+	(((base) & 0xff000000) << 32) | \
+	((limit) & 0x00ffff) | \
+	(((limit) & 0xff0000) << 32) | \
+	((flags) << 32))
+
+#define DESC64_LOW(base, limit, flags)	DESC32(base, limit, flags)
+#define DESC64_HIGH(base, limit, flags)	(((base) >> 32) & 0xffffffff)
+
+
+#define DESC_PRESENT		(1 << 15)
+#define DESC_LONG		(1 << 21)
+
+#define DESC_DPL(x)		((x) << 13)
+#define DESC_DPL_KERNEL		DESC_DPL(0)
+#define DESC_GPL_USER		DESC_DPL(3)
+
+#define DESC_TYPE(x)		((x) << 8)
+#define DESC_TYPE_TSS		DESC_TYPE(9)
+#define DESC_TYPE_CODE		DESC_TYPE(26)
+#define DESC_TYPE_DATA		DESC_TYPE(17)
+
+#define DESC_GRAN(x)		((x) << 23)
+#define DESC_GRAN_4K		DESC_GRAN(1)
+#define DESC_GRAN_BYTE		DESC_GRAN(0)
+
+	.align 16
 gdt:
         .quad 0x0000000000000000
 	.quad 0x00a09a0000000000
 	.quad 0x00a0920000000000
+	.quad 0x0000000000000000
+	.quad 0x0000000000000000
 gdt_ptr:
 	.word (gdt_ptr - gdt - 1)
 	.long gdt

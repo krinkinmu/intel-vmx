@@ -64,7 +64,10 @@ start64:
 	movw %ax, %es
 	movw %ax, %fs
 	movw %ax, %gs
-	movw %ax, %ss	
+	movw %ax, %ss
+
+	movw $0x18, %ax
+	ltr %ax
 
 	popq %rax
 	call *%rax

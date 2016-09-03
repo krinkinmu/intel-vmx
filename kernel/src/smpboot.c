@@ -30,6 +30,7 @@ static void ap_boot(void)
 		cpu_relax();
 
 	ints_cpu_setup();
+	tss_cpu_setup();
 	local_int_enable();
 	time_cpu_setup();
 	printf("ap started\n");
