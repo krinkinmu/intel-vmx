@@ -182,7 +182,6 @@ static int __vmcs_write(unsigned long field, unsigned long long val)
 	return err ? -1 : 0;
 }
 
-/*
 static int __vmcs_read(unsigned long field, unsigned long long *val)
 {
 	unsigned char err;
@@ -193,7 +192,6 @@ static int __vmcs_read(unsigned long field, unsigned long long *val)
 		: "memory", "cc");
 	return err ? -1 : 0;
 }
-*/
 
 static unsigned long ___vmcs_defctls(unsigned long low,
 			unsigned long tlow, unsigned long thigh)
@@ -286,18 +284,35 @@ void vmx_guest_release(struct vmx_guest *guest)
 static void vmx_guest_first_setup(struct vmx_guest *guest)
 {
 	extern char tss[];
+	unsigned long long conf;
 	struct desc_ptr ptr;
 
 	guest->vmcs = vmcs_alloc();
 	BUG_ON(__vmcs_clear(guest->vmcs) < 0);
 	BUG_ON(__vmcs_load(guest->vmcs) < 0);
 	vmcs_set_defctrls();
-	BUG_ON(__vmcs_write(VMCS_GUEST_RIP, guest->entry) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_RSP, guest->stack) < 0);
+
+	BUG_ON(__vmcs_read(VMCS_VMEXIT_CTLS, &conf) < 0);
+	BUG_ON(__vmcs_write(VMCS_VMEXIT_CTLS,
+				conf | VMCS_VMEXIT_CTLS_HOST_ADDR_SIZE) < 0);
+
+	BUG_ON(__vmcs_read(VMCS_PINBASED_CTLS, &conf) < 0);
+	BUG_ON(__vmcs_write(VMCS_PINBASED_CTLS,
+				conf | VMCS_PINBASED_CTLS_INT_EXIT) < 0);
+
+	BUG_ON(__vmcs_read(VMCS_VMENTRY_CTLS, &conf) < 0);
+	BUG_ON(__vmcs_write(VMCS_VMENTRY_CTLS,
+				conf | VMCS_VMENTRY_CTLS_IA32E_GUEST) < 0);
+
+	BUG_ON(__vmcs_write(VMCS_LINK_PTR, 0xffffffffffffffffull) < 0);
 	BUG_ON(__vmcs_write(VMCS_CR3_TARGET_COUNT, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_VMEXIT_MSR_STORE_COUNT, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_VMEXIT_MSR_LOAD_COUNT, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_VMENTRY_MSR_LOAD_COUNT, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_VMENTRY_INT_INFO, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_INT_STATE, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_PENDING_DEBUG_EXCEPTIONS, 0) < 0);
+
 	BUG_ON(__vmcs_write(VMCS_HOST_CR0, read_cr0()) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_CR3, read_cr3()) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_CR4, read_cr4()) < 0);
@@ -307,16 +322,70 @@ static void vmx_guest_first_setup(struct vmx_guest *guest)
 	BUG_ON(__vmcs_write(VMCS_HOST_CS, KERNEL_CODE) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_SS, KERNEL_DATA) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_DS, KERNEL_DATA) < 0);
-	BUG_ON(__vmcs_write(VMCS_HOST_FS, KERNEL_DATA) < 0);
-	BUG_ON(__vmcs_write(VMCS_HOST_FS_BASE, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_HOST_GS, KERNEL_DATA) < 0);
-	BUG_ON(__vmcs_write(VMCS_HOST_GS_BASE, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_TR, KERNEL_TSS) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_FS, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_GS, 0) < 0);
+
+	BUG_ON(__vmcs_write(VMCS_HOST_FS_BASE, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_HOST_GS_BASE, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_TR_BASE, (uintptr_t)tss) < 0);
+
 	read_gdt(&ptr);
 	BUG_ON(__vmcs_write(VMCS_HOST_GDTR_BASE, ptr.base) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_GDTR_BASE, ptr.base) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_GDTR_LIMIT, ptr.limit) < 0);
+
 	read_idt(&ptr);
 	BUG_ON(__vmcs_write(VMCS_HOST_IDTR_BASE, ptr.base) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_IDTR_BASE, ptr.base) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_IDTR_LIMIT, ptr.limit) < 0);
+
+	BUG_ON(__vmcs_write(VMCS_GUEST_RIP, guest->entry) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_RSP, guest->stack) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_RFLAGS, (1 << 1)) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_CR0, read_cr0()) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_CR3, read_cr3()) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_CR4, read_cr4()) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_DR7, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_ES, KERNEL_DATA) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_CS, KERNEL_CODE) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_SS, KERNEL_DATA) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_DS, KERNEL_DATA) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_TR, KERNEL_TSS) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_FS, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_GS, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_LDTR, 0) < 0);
+
+	BUG_ON(__vmcs_write(VMCS_GUEST_ES_BASE, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_CS_BASE, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_SS_BASE, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_DS_BASE, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_TR_BASE, (uintptr_t)tss) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_FS_BASE, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_GS_BASE, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_LDTR_BASE, 0) < 0);
+
+	BUG_ON(__vmcs_write(VMCS_GUEST_ES_LIMIT, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_CS_LIMIT, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_SS_LIMIT, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_DS_LIMIT, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_TR_LIMIT, sizeof(struct tss)) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_FS_LIMIT, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_GS_LIMIT, 0) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_LDTR_LIMIT, 0) < 0);
+
+	BUG_ON(__vmcs_write(VMCS_GUEST_CS_ACCESS,
+				11 | (1 << 4) | (1 << 7) | (1 << 13)) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_ES_ACCESS,
+				3 | (1 << 4) | (1 << 7) | (1 << 13)) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_SS_ACCESS,
+				3 | (1 << 4) | (1 << 7) | (1 << 13)) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_DS_ACCESS,
+				3 | (1 << 4) | (1 << 7) | (1 << 13)) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_TR_ACCESS, 11 | (1 << 7)) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_FS_ACCESS, (1 << 16)) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_GS_ACCESS, (1 << 16)) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_LDTR_ACCESS, (1 << 16)) < 0);
 }
 
 static void vmx_guest_setup_current(struct vmx_guest *guest)
@@ -336,14 +405,28 @@ static void vmx_guest_setup_current(struct vmx_guest *guest)
 	}
 }
 
-void vmcs_guest_run(struct vmx_guest *guest)
+void vmx_guest_run(struct vmx_guest *guest)
 {
 	vmx_guest_setup_current(guest);
 
-	if (guest->launched) {
-		BUG_ON(__vmcs_resume(&guest->state) < 0);
-	} else {
-		guest->launched = 1;
-		BUG_ON(__vmcs_launch(&guest->state) < 0);
+	while (1) {
+		unsigned long long reason;
+		unsigned long long qual;
+		unsigned long long error;
+
+		local_int_disable();
+		printf("Starting guest...\n");
+		if (guest->launched) {
+			BUG_ON(__vmcs_resume(&guest->state) < 0);
+		} else {
+			guest->launched = 1;
+			BUG_ON(__vmcs_launch(&guest->state) < 0);
+		}
+		BUG_ON(__vmcs_read(VMCS_VM_INSTR_ERROR, &error) < 0);
+		BUG_ON(__vmcs_read(VMCS_EXIT_REASON, &reason) < 0);
+		BUG_ON(__vmcs_read(VMCS_EXIT_QUALIFICATION, &qual) < 0);
+		printf("Guest finished, error %lld, reason %lld, qual %lld\n",
+					error, reason & 0xfffful, qual);
+		local_int_enable();
 	}
 }
