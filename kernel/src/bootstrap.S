@@ -124,7 +124,6 @@ start64:
 	jmp 1b
 
 	.bss
-	.global bootstrap_stack_top
 	.align 0x1000
 	.space 0x1000
 bootstrap_stack_top:
