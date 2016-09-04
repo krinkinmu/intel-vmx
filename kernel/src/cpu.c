@@ -1,12 +1,6 @@
 #include <string.h>
 #include <cpu.h>
 
-struct tss {
-	uint8_t reserved[102];
-	uint16_t iomap_offs;
-	uint8_t iomap[1];
-} __attribute__((packed));
-
 extern char tss[];
 
 static void tss_segment_setup(void)

@@ -15,6 +15,12 @@ struct desc_ptr {
 	uint64_t base;
 } __attribute__((packed));
 
+struct tss {
+	uint8_t reserved[102];
+	uint16_t iomap_offs;
+	uint8_t iomap[1];
+} __attribute__((packed));
+
 static inline void cpu_relax(void)
 { __asm__ volatile("pause"); }
 
