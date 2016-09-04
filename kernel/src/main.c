@@ -20,6 +20,12 @@ static void acpi_early_setup(void)
 		BUG("Failed to initialize ACPICA tables subsytem\n");
 }
 
+static void guest_entry(void)
+{
+	printf("Guest started\n");
+	while (1);
+}
+
 void main(const struct mboot_info *info)
 {
 #ifdef DEBUG
@@ -43,5 +49,13 @@ void main(const struct mboot_info *info)
 	smp_setup();
 	vmx_setup();
 	vmx_enter();
+	
+	struct vmx_guest guest;
+	static unsigned char stack[4096];
+
+	vmx_guest_setup(&guest);
+	guest.entry = (uintptr_t)&guest_entry;
+	guest.stack = (uintptr_t)(stack + 4096);
+	vmx_guest_run(&guest);
 	while (1);
 }
