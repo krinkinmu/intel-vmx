@@ -305,40 +305,20 @@ static void vmx_guest_first_setup(struct vmx_guest *guest)
 				conf | VMCS_VMENTRY_CTLS_IA32E_GUEST) < 0);
 
 	BUG_ON(__vmcs_write(VMCS_LINK_PTR, 0xffffffffffffffffull) < 0);
-	BUG_ON(__vmcs_write(VMCS_CR3_TARGET_COUNT, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_VMEXIT_MSR_STORE_COUNT, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_VMEXIT_MSR_LOAD_COUNT, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_VMENTRY_MSR_LOAD_COUNT, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_VMENTRY_INT_INFO, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_INT_STATE, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_PENDING_DEBUG_EXCEPTIONS, 0) < 0);
-
 	BUG_ON(__vmcs_write(VMCS_HOST_CR0, read_cr0()) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_CR3, read_cr3()) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_CR4, read_cr4()) < 0);
-	BUG_ON(__vmcs_write(VMCS_HOST_IA32_SYSENTER_ESP, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_HOST_IA32_SYSENTER_EIP, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_ES, KERNEL_DATA) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_CS, KERNEL_CODE) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_SS, KERNEL_DATA) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_DS, KERNEL_DATA) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_TR, KERNEL_TSS) < 0);
-	BUG_ON(__vmcs_write(VMCS_HOST_FS, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_HOST_GS, 0) < 0);
-
-	BUG_ON(__vmcs_write(VMCS_HOST_FS_BASE, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_HOST_GS_BASE, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_TR_BASE, (uintptr_t)tss) < 0);
 
 	read_gdt(&ptr);
 	BUG_ON(__vmcs_write(VMCS_HOST_GDTR_BASE, ptr.base) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_GDTR_BASE, ptr.base) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_GDTR_LIMIT, ptr.limit) < 0);
-
 	read_idt(&ptr);
 	BUG_ON(__vmcs_write(VMCS_HOST_IDTR_BASE, ptr.base) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_IDTR_BASE, ptr.base) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_IDTR_LIMIT, ptr.limit) < 0);
 
 	BUG_ON(__vmcs_write(VMCS_GUEST_RIP, guest->entry) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_RSP, guest->stack) < 0);
@@ -352,27 +332,18 @@ static void vmx_guest_first_setup(struct vmx_guest *guest)
 	BUG_ON(__vmcs_write(VMCS_GUEST_SS, KERNEL_DATA) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_DS, KERNEL_DATA) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_TR, KERNEL_TSS) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_FS, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_GS, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_LDTR, 0) < 0);
 
 	BUG_ON(__vmcs_write(VMCS_GUEST_ES_BASE, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_CS_BASE, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_SS_BASE, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_DS_BASE, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_TR_BASE, (uintptr_t)tss) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_FS_BASE, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_GS_BASE, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_LDTR_BASE, 0) < 0);
 
 	BUG_ON(__vmcs_write(VMCS_GUEST_ES_LIMIT, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_CS_LIMIT, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_SS_LIMIT, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_DS_LIMIT, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_TR_LIMIT, sizeof(struct tss)) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_FS_LIMIT, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_GS_LIMIT, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_LDTR_LIMIT, 0) < 0);
 
 	BUG_ON(__vmcs_write(VMCS_GUEST_CS_ACCESS,
 				11 | (1 << 4) | (1 << 7) | (1 << 13)) < 0);
