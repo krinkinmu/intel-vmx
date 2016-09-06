@@ -281,30 +281,13 @@ void vmx_guest_release(struct vmx_guest *guest)
 	memset(guest, 0, sizeof(*guest));
 }
 
-static void vmx_guest_first_setup(struct vmx_guest *guest)
+static void vmx_host_state_setup(struct vmx_guest *guest)
 {
 	extern char tss[];
-	unsigned long long conf;
 	struct desc_ptr ptr;
 
-	guest->vmcs = vmcs_alloc();
-	BUG_ON(__vmcs_clear(guest->vmcs) < 0);
-	BUG_ON(__vmcs_load(guest->vmcs) < 0);
-	vmcs_set_defctrls();
+	(void) guest;
 
-	BUG_ON(__vmcs_read(VMCS_VMEXIT_CTLS, &conf) < 0);
-	BUG_ON(__vmcs_write(VMCS_VMEXIT_CTLS,
-				conf | VMCS_VMEXIT_CTLS_HOST_ADDR_SIZE) < 0);
-
-	BUG_ON(__vmcs_read(VMCS_PINBASED_CTLS, &conf) < 0);
-	BUG_ON(__vmcs_write(VMCS_PINBASED_CTLS,
-				conf | VMCS_PINBASED_CTLS_INT_EXIT) < 0);
-
-	BUG_ON(__vmcs_read(VMCS_VMENTRY_CTLS, &conf) < 0);
-	BUG_ON(__vmcs_write(VMCS_VMENTRY_CTLS,
-				conf | VMCS_VMENTRY_CTLS_IA32E_GUEST) < 0);
-
-	BUG_ON(__vmcs_write(VMCS_LINK_PTR, 0xffffffffffffffffull) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_CR0, read_cr0()) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_CR3, read_cr3()) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_CR4, read_cr4()) < 0);
@@ -319,6 +302,11 @@ static void vmx_guest_first_setup(struct vmx_guest *guest)
 	BUG_ON(__vmcs_write(VMCS_HOST_GDTR_BASE, ptr.base) < 0);
 	read_idt(&ptr);
 	BUG_ON(__vmcs_write(VMCS_HOST_IDTR_BASE, ptr.base) < 0);
+}
+
+static void vmx_guest_state_setup(struct vmx_guest *guest)
+{
+	extern char tss[];
 
 	BUG_ON(__vmcs_write(VMCS_GUEST_RIP, guest->entry) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_RSP, guest->stack) < 0);
@@ -357,6 +345,40 @@ static void vmx_guest_first_setup(struct vmx_guest *guest)
 	BUG_ON(__vmcs_write(VMCS_GUEST_FS_ACCESS, (1 << 16)) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_GS_ACCESS, (1 << 16)) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_LDTR_ACCESS, (1 << 16)) < 0);
+}
+
+static void vmx_guest_config_setup(struct vmx_guest *guest)
+{
+	unsigned long long conf;
+
+	(void) guest;
+
+	vmcs_set_defctrls();
+
+	BUG_ON(__vmcs_read(VMCS_VMEXIT_CTLS, &conf) < 0);
+	BUG_ON(__vmcs_write(VMCS_VMEXIT_CTLS,
+				conf | VMCS_VMEXIT_CTLS_HOST_ADDR_SIZE) < 0);
+
+	BUG_ON(__vmcs_read(VMCS_PINBASED_CTLS, &conf) < 0);
+	BUG_ON(__vmcs_write(VMCS_PINBASED_CTLS,
+				conf | VMCS_PINBASED_CTLS_INT_EXIT) < 0);
+
+	BUG_ON(__vmcs_read(VMCS_VMENTRY_CTLS, &conf) < 0);
+	BUG_ON(__vmcs_write(VMCS_VMENTRY_CTLS,
+				conf | VMCS_VMENTRY_CTLS_IA32E_GUEST) < 0);
+
+	BUG_ON(__vmcs_write(VMCS_LINK_PTR, 0xffffffffffffffffull) < 0);
+}
+
+static void vmx_guest_first_setup(struct vmx_guest *guest)
+{
+	guest->vmcs = vmcs_alloc();
+	BUG_ON(__vmcs_clear(guest->vmcs) < 0);
+	BUG_ON(__vmcs_load(guest->vmcs) < 0);
+
+	vmx_guest_config_setup(guest);
+	vmx_host_state_setup(guest);
+	vmx_guest_state_setup(guest);
 }
 
 static void vmx_guest_setup_current(struct vmx_guest *guest)
