@@ -325,13 +325,13 @@ static void vmx_guest_state_setup(struct vmx_guest *guest)
 	BUG_ON(__vmcs_write(VMCS_GUEST_CS_BASE, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_SS_BASE, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_DS_BASE, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_TR_BASE, (uintptr_t)tss) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_TR_BASE, 0) < 0);
 
 	BUG_ON(__vmcs_write(VMCS_GUEST_ES_LIMIT, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_CS_LIMIT, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_SS_LIMIT, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_DS_LIMIT, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_TR_LIMIT, sizeof(struct tss)) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_TR_LIMIT, 0) < 0);
 
 	BUG_ON(__vmcs_write(VMCS_GUEST_CS_ACCESS,
 				11 | (1 << 4) | (1 << 7) | (1 << 13)) < 0);
