@@ -22,8 +22,9 @@ static void acpi_early_setup(void)
 
 static void guest_entry(void)
 {
-	printf("Guest started\n");
-	while (1);
+	printf("Guest started.\n");
+	while (1)
+		printf("Guest working...\n");
 }
 
 void main(const struct mboot_info *info)

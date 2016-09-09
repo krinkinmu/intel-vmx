@@ -283,7 +283,6 @@ void vmx_guest_release(struct vmx_guest *guest)
 
 static void vmx_host_state_setup(struct vmx_guest *guest)
 {
-	extern char tss[];
 	struct desc_ptr ptr;
 
 	(void) guest;
@@ -296,7 +295,6 @@ static void vmx_host_state_setup(struct vmx_guest *guest)
 	BUG_ON(__vmcs_write(VMCS_HOST_SS, KERNEL_DATA) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_DS, KERNEL_DATA) < 0);
 	BUG_ON(__vmcs_write(VMCS_HOST_TR, KERNEL_TSS) < 0);
-	BUG_ON(__vmcs_write(VMCS_HOST_TR_BASE, (uintptr_t)tss) < 0);
 
 	read_gdt(&ptr);
 	BUG_ON(__vmcs_write(VMCS_HOST_GDTR_BASE, ptr.base) < 0);
@@ -306,8 +304,6 @@ static void vmx_host_state_setup(struct vmx_guest *guest)
 
 static void vmx_guest_state_setup(struct vmx_guest *guest)
 {
-	extern char tss[];
-
 	BUG_ON(__vmcs_write(VMCS_GUEST_RIP, guest->entry) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_RSP, guest->stack) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_RFLAGS, (1 << 1)) < 0);
@@ -315,11 +311,6 @@ static void vmx_guest_state_setup(struct vmx_guest *guest)
 	BUG_ON(__vmcs_write(VMCS_GUEST_CR3, read_cr3()) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_CR4, read_cr4()) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_DR7, 0) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_ES, KERNEL_DATA) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_CS, KERNEL_CODE) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_SS, KERNEL_DATA) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_DS, KERNEL_DATA) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_TR, KERNEL_TSS) < 0);
 
 	BUG_ON(__vmcs_write(VMCS_GUEST_ES_BASE, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_CS_BASE, 0) < 0);
