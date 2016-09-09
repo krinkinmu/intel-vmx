@@ -43,6 +43,28 @@
 #define IA32_FC_LOCK		(1ull << 0)
 #define IA32_FC_NATIVE_VMX	(1ull << 2)
 
+#define SGA_A		(1 << 0)
+#define SGA_W		(1 << 1)
+#define SGA_R		(1 << 1)
+#define SGA_X		(1 << 3)
+#define SGA_NOT_SYSTEM	(1 << 4)
+#define SGA_PRESENT	(1 << 7)
+#define SGA_LONG	(1 << 13)
+#define SGA_INVALID	(1 << 16)
+
+#define __SGA_CODE	(SGA_NOT_SYSTEM | SGA_X)
+#define __SGA_DATA	SGA_NOT_SYSTEM
+#define __SGA_WA	(SGA_W | SGA_A)
+#define __SGA_RA	(SGA_R | SGA_A)
+#define __SGA_TSS_BUSY	11
+#define __SGA_TSS_AVAIL	9
+
+#define SGA_CODE_RA		(SGA_PRESENT | __SGA_CODE | __SGA_RA)
+#define SGA_DATA_WA		(SGA_PRESENT | __SGA_DATA | __SGA_WA)
+#define SGA_TSS_BUSY		(SGA_PRESENT | __SGA_TSS_BUSY)
+#define SGA_CODE_RA_LONG	(SGA_CODE_RA | SGA_LONG)
+#define SGA_DATA_WA_LONG	(SGA_DATA_WA | SGA_LONG)
+
 int __vmcs_launch(struct vmx_guest_state *state);
 int __vmcs_resume(struct vmx_guest_state *state);
 static uintptr_t vmxon_addr;
@@ -324,18 +346,14 @@ static void vmx_guest_state_setup(struct vmx_guest *guest)
 	BUG_ON(__vmcs_write(VMCS_GUEST_DS_LIMIT, 0) < 0);
 	BUG_ON(__vmcs_write(VMCS_GUEST_TR_LIMIT, 0) < 0);
 
-	BUG_ON(__vmcs_write(VMCS_GUEST_CS_ACCESS,
-				11 | (1 << 4) | (1 << 7) | (1 << 13)) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_ES_ACCESS,
-				3 | (1 << 4) | (1 << 7) | (1 << 13)) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_SS_ACCESS,
-				3 | (1 << 4) | (1 << 7) | (1 << 13)) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_DS_ACCESS,
-				3 | (1 << 4) | (1 << 7) | (1 << 13)) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_TR_ACCESS, 11 | (1 << 7)) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_FS_ACCESS, (1 << 16)) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_GS_ACCESS, (1 << 16)) < 0);
-	BUG_ON(__vmcs_write(VMCS_GUEST_LDTR_ACCESS, (1 << 16)) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_CS_ACCESS, SGA_CODE_RA_LONG) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_ES_ACCESS, SGA_DATA_WA_LONG) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_SS_ACCESS, SGA_DATA_WA_LONG) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_DS_ACCESS, SGA_DATA_WA_LONG) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_TR_ACCESS, SGA_TSS_BUSY) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_FS_ACCESS, SGA_INVALID) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_GS_ACCESS, SGA_INVALID) < 0);
+	BUG_ON(__vmcs_write(VMCS_GUEST_LDTR_ACCESS, SGA_INVALID) < 0);
 }
 
 static void vmx_guest_config_setup(struct vmx_guest *guest)
