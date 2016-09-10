@@ -81,14 +81,14 @@ $(LIBC_A_OBJ): %.o: %.S
 	$(CC) -D__ASM_FILE__ -g -MD -c $< -o $@
 
 $(LIBC_C_OBJ): %.o: %.c
-	$(CC) -I$(LIBC_INC) $(CFLAGS) -MD -c $< -o $@
+	$(CC) -I$(LIBC_INC) $(CFLAGS) -O2 -MD -c $< -o $@
 
 $(KERNEL_A_OBJ): %.o: %.S
 	$(CC) -D__ASM_FILE__ -g -MD -c $< -o $@
 
 $(KERNEL_C_OBJ): %.o: %.c
 	$(CC) -I$(KERNEL_INC) -I$(LIBC_INC) -isystem $(ACPICA_INC) \
-		$(CFLAGS) -MD -c $< -o $@
+		$(CFLAGS) -O2 -MD -c $< -o $@
 
 -include $(KERNEL_DEP)
 -include $(ACPICA_DEP)
