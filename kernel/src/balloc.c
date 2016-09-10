@@ -33,7 +33,7 @@ static struct memory_node *balloc_alloc_node(void)
 	struct list_head *node = balloc_free_list.next;
 
 	list_del(node);
-	return LIST_ENTRY(node, struct memory_node, link.ll);
+	return LL2MEMORY_NODE(node);
 }
 
 static void balloc_free_node(struct memory_node *node)
@@ -48,8 +48,7 @@ static void __balloc_add_range(struct rb_tree *tree,
 	struct rb_node *parent = 0;
 
 	while (*plink) {
-		struct memory_node *node = TREE_ENTRY(*plink,
-					struct memory_node, link.rb);
+		struct memory_node *node = RB2MEMORY_NODE(*plink);
 
 		parent = *plink;
 		if (node->begin < from)
@@ -66,8 +65,7 @@ static void __balloc_add_range(struct rb_tree *tree,
 	rb_link(&new->link.rb, parent, plink);
 	rb_insert(&new->link.rb, tree);
 
-	struct memory_node *prev = TREE_ENTRY(rb_prev(&new->link.rb),
-				struct memory_node, link.rb);
+	struct memory_node *prev = RB2MEMORY_NODE(rb_prev(&new->link.rb));
 
 	if (prev && prev->end >= new->begin) {
 		new->begin = prev->begin;
@@ -77,8 +75,7 @@ static void __balloc_add_range(struct rb_tree *tree,
 		balloc_free_node(prev);
 	}
 
-	struct memory_node *next = TREE_ENTRY(rb_next(&new->link.rb),
-				struct memory_node, link.rb);
+	struct memory_node *next = RB2MEMORY_NODE(rb_next(&new->link.rb));
 
 	if (next && next->begin <= new->end) {
 		new->end = next->end;
@@ -94,8 +91,7 @@ static void __balloc_remove_range(struct rb_tree *tree,
 	struct memory_node *ptr = 0;
 
 	while (link) {
-		struct memory_node *node = TREE_ENTRY(link,
-					struct memory_node, link.rb);
+		struct memory_node *node = RB2MEMORY_NODE(link);
 
 		if (node->end > from) {
 			link = link->left;
@@ -106,8 +102,8 @@ static void __balloc_remove_range(struct rb_tree *tree,
 	}
 
 	while (ptr && ptr->begin < to) {
-		struct memory_node *next = TREE_ENTRY(rb_next(&ptr->link.rb),
-					struct memory_node, link.rb);
+		struct memory_node *next =
+					RB2MEMORY_NODE(rb_next(&ptr->link.rb));
 
 		rb_erase(&ptr->link.rb, tree);
 		if (ptr->begin < from)
@@ -127,8 +123,7 @@ uintptr_t __balloc_alloc(size_t size, uintptr_t align,
 	struct memory_node *ptr = 0;
 
 	while (link) {
-		struct memory_node *node = TREE_ENTRY(link,
-					struct memory_node, link.rb);
+		struct memory_node *node = RB2MEMORY_NODE(link);
 
 		if (node->end > from) {
 			link = link->left;
@@ -155,8 +150,7 @@ uintptr_t __balloc_alloc(size_t size, uintptr_t align,
 			return addr;
 		}
 
-		ptr = TREE_ENTRY(rb_next(&ptr->link.rb),
-					struct memory_node, link.rb);
+		ptr = RB2MEMORY_NODE(rb_next(&ptr->link.rb));
 	}
 
 	return to;
@@ -230,15 +224,14 @@ static void balloc_parse_mmap(const struct mboot_info *info)
 
 static void __balloc_dump_ranges(const struct rb_tree *tree)
 {
-	const struct memory_node *node = TREE_ENTRY(rb_leftmost(tree->root),
-				struct memory_node, link.rb);
+	const struct memory_node *node =
+				RB2MEMORY_NODE(rb_leftmost(tree->root));
 
 	while (node) {
 		printf("memory range: 0x%llx-0x%llx\n",
 					(unsigned long long)node->begin,
 					(unsigned long long)node->end);
-		node = TREE_ENTRY(rb_next(&node->link.rb),
-					struct memory_node, link.rb);
+		node = RB2MEMORY_NODE(rb_next(&node->link.rb));
 	}
 }
 

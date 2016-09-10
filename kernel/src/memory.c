@@ -181,8 +181,7 @@ void page_alloc_setup(void)
 	list_init(&page_alloc_zones);
 
 	while (ptr) {
-		struct memory_node *node = CONTAINER_OF(ptr, struct memory_node,
-					link.ll);
+		struct memory_node *node = RB2MEMORY_NODE(ptr);
 
 		if (node->end <= LOW_MEMORY || node->begin >= LOW_MEMORY) {
 			page_alloc_zone_setup(node->begin, node->end);
@@ -196,8 +195,7 @@ void page_alloc_setup(void)
 	ptr = rb_leftmost(free_ranges.root);
 
 	while (ptr) {
-		struct memory_node *node = CONTAINER_OF(ptr, struct memory_node,
-					link.ll);
+		struct memory_node *node = RB2MEMORY_NODE(ptr);
 
 		if (node->end <= LOW_MEMORY || node->begin >= LOW_MEMORY) {
 			page_alloc_zone_free(node->begin, node->end);

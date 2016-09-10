@@ -26,4 +26,14 @@ uintptr_t __balloc_alloc(size_t size, uintptr_t align,
 uintptr_t balloc_alloc(size_t size, uintptr_t from, uintptr_t to);
 void balloc_free(uintptr_t begin, uintptr_t end);
 
+static inline struct memory_node *RB2MEMORY_NODE(const struct rb_node *node)
+{
+	return CONTAINER_OF(node, struct memory_node, link);
+}
+
+static inline struct memory_node *LL2MEMORY_NODE(const struct list_head *node)
+{
+	return CONTAINER_OF(node, struct memory_node, link);
+}
+
 #endif /*__BOOTSTRAP_ALLOCATOR_H__*/
