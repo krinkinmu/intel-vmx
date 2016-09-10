@@ -106,7 +106,7 @@ static int vmxon(unsigned long vmxon_addr)
 {
 	unsigned long rflags;
 
-	__asm__ ("vmxon %1; pushfq; popq %0"
+	__asm__ volatile ("vmxon %1; pushfq; popq %0"
 		: "=rm"(rflags)
 		: "m"(vmxon_addr)
 		: "memory", "cc");
@@ -117,7 +117,7 @@ static int vmxoff(void)
 {
 	unsigned long rflags;
 
-	__asm__ ("vmxoff; pushfq; popq %0"
+	__asm__ volatile ("vmxoff; pushfq; popq %0"
 		: "=rm"(rflags)
 		:
 		: "memory", "cc");
@@ -164,7 +164,7 @@ static int __vmcs_load(unsigned long vmcs)
 {
 	unsigned char err;
 
-	__asm__ ("vmptrld %1; setna %0"
+	__asm__ volatile ("vmptrld %1; setna %0"
 		: "=r"(err)
 		: "m"(vmcs)
 		: "memory", "cc");
@@ -175,7 +175,7 @@ static int __vmcs_store(unsigned long *vmcs)
 {
 	unsigned char err;
 
-	__asm__("vmptrst %1; setna %0"
+	__asm__ volatile ("vmptrst %1; setna %0"
 		: "=r"(err), "=m"(*vmcs)
 		:
 		: "memory", "cc");
@@ -186,7 +186,7 @@ static int __vmcs_clear(unsigned long vmcs)
 {
 	unsigned char err;
 
-	__asm__ ("vmclear %1; setna %0"
+	__asm__ volatile ("vmclear %1; setna %0"
 		: "=r"(err)
 		: "m"(vmcs)
 		: "memory", "cc");
@@ -197,7 +197,7 @@ static int __vmcs_write(unsigned long field, unsigned long long val)
 {
 	unsigned char err;
 
-	__asm__("vmwrite %1, %2; setna %0"
+	__asm__ volatile ("vmwrite %1, %2; setna %0"
 		: "=r"(err)
 		: "r"(val), "r"(field)
 		: "memory", "cc");
@@ -208,7 +208,7 @@ static int __vmcs_read(unsigned long field, unsigned long long *val)
 {
 	unsigned char err;
 
-	__asm__ ("vmread %2, %1; setna %0"
+	__asm__ volatile ("vmread %2, %1; setna %0"
 		: "=r"(err), "=r"(*val)
 		: "r"(field)
 		: "memory", "cc");
