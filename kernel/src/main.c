@@ -8,6 +8,7 @@
 #include <cpu.h>
 #include <smpboot.h>
 #include <memory.h>
+#include <alloc.h>
 #include <vmx.h>
 
 static void acpi_early_setup(void)
@@ -25,6 +26,32 @@ static void guest_entry(void)
 	printf("Guest started.\n");
 	while (1)
 		printf("Guest working...\n");
+}
+
+static void mem_cache_test(void)
+{
+	struct mem_cache cache;
+	struct list_head lst;
+
+	mem_cache_setup(&cache, sizeof(lst), sizeof(lst));
+	list_init(&lst);
+	for (size_t i = 0; i != 1000000; ++i) {
+		struct list_head *ptr = mem_cache_alloc(&cache);
+
+		if (!ptr) {
+			printf("allocated %lu entries\n", (unsigned long)i);
+			break;
+		}
+		list_add_tail(ptr, &lst);
+	}
+
+	for (struct list_head *ptr = lst.next; ptr != &lst;) {
+		void *to_free = ptr;
+
+		ptr = ptr->next;
+		mem_cache_free(&cache, to_free);
+	}
+	mem_cache_release(&cache);
 }
 
 void main(const struct mboot_info *info)
@@ -47,6 +74,9 @@ void main(const struct mboot_info *info)
 	time_cpu_setup();
 	smp_early_setup();
 	page_alloc_setup();
+
+	mem_cache_test();
+
 	smp_setup();
 	vmx_setup();
 	vmx_enter();
