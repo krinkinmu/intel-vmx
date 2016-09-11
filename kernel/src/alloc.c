@@ -73,11 +73,12 @@ static void mem_cache_layout_setup(struct mem_cache *cache,
 	const size_t min_size = obj_size * MIN_POOL_OBJS +
 				meta_size(MIN_POOL_OBJS);
 	const int pool_order = ilog2(min_size >> PAGE_SHIFT);
-	const size_t pool_size = (size_t)1 << pool_order;
+	const size_t pool_size = (size_t)1 << (pool_order + PAGE_SHIFT);
 
 	size_t objs = pool_size / obj_size;
 
-	for (; obj_size * objs + meta_size(objs) > pool_size; --objs);
+	while (obj_size * objs + meta_size(objs) > pool_size)
+		--objs;
 
 	cache->meta_offs = pool_size - meta_size(objs);
 	cache->obj_count = objs;
@@ -106,7 +107,8 @@ static struct mem_pool *mem_pool_create(struct mem_cache *cache)
 {
 	const uintptr_t addr = page_alloc(cache->pool_order, 0);
 
-	BUG_ON(!addr);
+	if (!addr)
+		return 0;
 
 	struct mem_pool *meta = (struct mem_pool *)(addr + cache->meta_offs);
 
@@ -201,7 +203,7 @@ static void mem_pool_free(struct mem_cache *cache, struct mem_pool *pool,
 	pool->bitmask[word] &= ~(1ull << bit);
 	++pool->free;
 
-	BUG_ON(pool->free >= cache->obj_count);
+	BUG_ON(pool->free > cache->obj_count);
 }
 
 void *mem_cache_alloc(struct mem_cache *cache)
@@ -233,6 +235,10 @@ void *mem_cache_alloc(struct mem_cache *cache)
 	}
 
 	struct mem_pool *pool = mem_pool_create(cache);
+
+	if (!pool)
+		return 0;
+
 	void *data = mem_pool_alloc(cache, pool);
 
 	list_add(&pool->ll, &cache->partial_pools);
@@ -241,7 +247,7 @@ void *mem_cache_alloc(struct mem_cache *cache)
 
 void mem_cache_free(struct mem_cache *cache, void *ptr)
 {
-	const size_t pool_size = (size_t)1 << cache->pool_order;
+	const size_t pool_size = (size_t)1 << (cache->pool_order + PAGE_SHIFT);
 	const uintptr_t addr = align_down((uintptr_t)ptr, pool_size);
 	struct mem_pool *pool = (struct mem_pool *)(addr + cache->meta_offs);
 
