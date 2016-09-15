@@ -6,6 +6,7 @@
 #include <time.h>
 #include <ints.h>
 #include <cpu.h>
+#include <vmx.h>
 
 #define CMOS_PORT(x) (0x70 + x)
 
@@ -14,10 +15,8 @@ struct tr_data {
 	uint32_t pgtable;
 	uint32_t stackend;
 	uint32_t startup;
-	uint16_t gdt_size;
-	uint32_t gdt_addr;
-	uint16_t idt_size;
-	uint32_t idt_addr;
+	struct desc_ptr gdt;
+	struct desc_ptr idt;
 } __attribute__((packed));
 
 static volatile int ap_started;	/* TODO: must be atomic */
@@ -30,9 +29,9 @@ static void ap_boot(void)
 		cpu_relax();
 
 	ints_cpu_setup();
-	tss_cpu_setup();
-	local_int_enable();
 	time_cpu_setup();
+	vmx_setup();
+	local_int_enable();
 	printf("ap started\n");
 	while (1)
 		cpu_relax();
@@ -42,8 +41,7 @@ static void tr_data_setup(struct tr_data *data)
 {
 	uint64_t pgtable;
 
-	__asm__("sgdt %0" : "=m"(data->gdt_size));
-	__asm__("movq %%cr3, %0" : "=a"(pgtable));
+	pgtable = read_cr3();
 	BUG_ON(pgtable & (0xffffffffull << 32));
 	data->pgtable = pgtable;
 	data->startup = (uintptr_t)&ap_boot;
@@ -130,6 +128,7 @@ void smp_early_setup(void)
 		printf("stack for APIC id %d at 0x%lx\n", apic_id,
 					(unsigned long)stack);
 		tr_data->stackend = stack + stack_size;
+		gdt_cpu_create(&tr_data->gdt);
 		startup_ap(apic_id, (unsigned long)trampoline);
 	}
 	balloc_free((uintptr_t)trampoline, (uintptr_t)trampoline + size);
