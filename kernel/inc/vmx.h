@@ -202,8 +202,6 @@ struct vmx_guest {
 };
 
 void vmx_setup(void);
-void vmx_enter(void);
-void vmx_exit(void);
 
 void vmx_guest_setup(struct vmx_guest *guest);
 void vmx_guest_run(struct vmx_guest *guest);

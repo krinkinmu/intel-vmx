@@ -67,7 +67,6 @@
 
 int __vmcs_launch(struct vmx_guest_state *state);
 int __vmcs_resume(struct vmx_guest_state *state);
-static uintptr_t vmxon_addr;
 
 
 static unsigned long vmx_revision(void)
@@ -102,7 +101,7 @@ static void vmxon_check(void)
 	BUG_ON((read_msr(IA32_FEATURE_CONTROL) & 1) != 1);
 }
 
-static int vmxon(unsigned long vmxon_addr)
+static int __vmxon(unsigned long vmxon_addr)
 {
 	unsigned long rflags;
 
@@ -111,29 +110,6 @@ static int vmxon(unsigned long vmxon_addr)
 		: "m"(vmxon_addr)
 		: "memory", "cc");
 	return (rflags & RFLAGS_CF) ? -1 : 0;
-}
-
-static int vmxoff(void)
-{
-	unsigned long rflags;
-
-	__asm__ volatile ("vmxoff; pushfq; popq %0"
-		: "=rm"(rflags)
-		:
-		: "memory", "cc");
-	return (rflags & (RFLAGS_CF | RFLAGS_ZF)) ? -1 : 0;
-}
-
-void vmx_enter(void)
-{
-	write_cr4(read_cr4() | CR4_VMXE);
-	vmxon_check();
-	BUG_ON(vmxon(vmxon_addr) < 0);
-}
-
-void vmx_exit(void)
-{
-	BUG_ON(vmxoff() < 0);
 }
 
 static int vmx_supported(void)
@@ -156,8 +132,14 @@ void vmx_setup(void)
 		BUG_ON((read_msr(IA32_FEATURE_CONTROL) & mask) != mask);
 	}
 
+	uintptr_t vmxon_addr;
+
 	BUG_ON(!(vmxon_addr = page_alloc(1, PA_LOW_MEM)));
 	vmxon_setup((volatile void *)vmxon_addr);
+
+	write_cr4(read_cr4() | CR4_VMXE);
+	vmxon_check();
+	BUG_ON(__vmxon(vmxon_addr) < 0);
 }
 
 static int __vmcs_load(unsigned long vmcs)
@@ -412,23 +394,13 @@ void vmx_guest_run(struct vmx_guest *guest)
 	vmx_guest_setup_current(guest);
 
 	while (1) {
-		unsigned long long reason;
-		unsigned long long qual;
-		unsigned long long error;
-
 		local_int_disable();
-		printf("Starting guest...\n");
 		if (guest->launched) {
 			BUG_ON(__vmcs_resume(&guest->state) < 0);
 		} else {
 			guest->launched = 1;
 			BUG_ON(__vmcs_launch(&guest->state) < 0);
 		}
-		BUG_ON(__vmcs_read(VMCS_VM_INSTR_ERROR, &error) < 0);
-		BUG_ON(__vmcs_read(VMCS_EXIT_REASON, &reason) < 0);
-		BUG_ON(__vmcs_read(VMCS_EXIT_QUALIFICATION, &qual) < 0);
-		printf("Guest finished, error %lld, reason %lld, qual %lld\n",
-					error, reason & 0xfffful, qual);
 		local_int_enable();
 	}
 }
