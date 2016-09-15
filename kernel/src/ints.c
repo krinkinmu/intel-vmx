@@ -2,6 +2,7 @@
 #include <debug.h>
 #include <apic.h>
 #include <ints.h>
+#include <cpu.h>
 
 
 #define IDT_DPL(x)	(((unsigned)(x) & 0x3u) << 13)
@@ -15,11 +16,6 @@
 #define IDT_PRESENT	(1u << 15)
 #define IDT_EXCEPTION	(IDT_KERNEL_MODE | IDT_INT_GATE | IDT_PRESENT)
 #define IDT_IRQ		(IDT_KERNEL_MODE | IDT_INT_GATE | IDT_PRESENT)
-
-struct idt_ptr {
-	uint16_t size;
-	uint64_t idt;
-} __attribute__((packed));
 
 struct idt_desc {
 	uint16_t offs0;
@@ -123,12 +119,12 @@ void ints_setup(void)
 
 static void idt_setup(void)
 {
-	const struct idt_ptr ptr = {
-		.size = sizeof(idt) - 1,
-		.idt = (uint64_t)idt
+	const struct desc_ptr ptr = {
+		.limit = sizeof(idt) - 1,
+		.base = (uint64_t)idt
 	};
 
-	__asm__ volatile ("lidt %0" : : "m"(ptr)); 
+	write_idt(&ptr);
 }
 
 static void local_apic_setup(void)
