@@ -15,12 +15,6 @@ struct desc_ptr {
 	uint64_t base;
 } __attribute__((packed));
 
-struct tss {
-	uint8_t reserved[102];
-	uint16_t iomap_offs;
-	uint8_t iomap[1];
-} __attribute__((packed));
-
 static inline void cpu_relax(void)
 { __asm__ volatile("pause"); }
 
@@ -88,9 +82,19 @@ static inline void write_cr4(unsigned long long cr4)
 	__asm__ volatile ("movq %0, %%cr4" : : "a"(cr4));
 }
 
+static inline void write_gdt(const struct desc_ptr *ptr)
+{
+	__asm__ volatile ("lgdt %0" : : "m"(*ptr));
+}
+
 static inline void read_gdt(struct desc_ptr *ptr)
 {
 	__asm__ volatile ("sgdt %0" : "=m"(*ptr));
+}
+
+static inline void write_idt(const struct desc_ptr *ptr)
+{
+	__asm__ volatile ("lidt %0" : : "m"(*ptr));
 }
 
 static inline void read_idt(struct desc_ptr *ptr)
@@ -111,7 +115,7 @@ static inline unsigned short read_tr(void)
 	return tr;
 }
 
-void tss_setup(void);
-void tss_cpu_setup(void);
+void gdt_cpu_create(struct desc_ptr *ptr);
+void gdt_cpu_setup(const struct desc_ptr *ptr);
 
 #endif /*__CPU_H__*/

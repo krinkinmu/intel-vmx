@@ -23,19 +23,10 @@ multiboot_header:
 	.long start32
 
 	.align 16
-	.global tss
-tss:
-tss_begin:
-	.space 105
-tss_end:
-
-	.align 16
 gdt:
         .quad 0x0000000000000000
 	.quad 0x00209b0000000000
 	.quad 0x0020930000000000
-	.quad 0x0000000000000000
-	.quad 0x0000000000000000
 gdt_ptr:
 	.word (gdt_ptr - gdt - 1)
 	.long gdt
