@@ -51,10 +51,10 @@ startup:
 	.long 0x0
 tr_gdt:
 	.word 0x0
-	.long 0x0
+	.quad 0x0
 tr_idt:
 	.word 0x0
-	.long 0x0
+	.quad 0x0
 tr_end:
 
 	.code64
