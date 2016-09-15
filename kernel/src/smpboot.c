@@ -24,6 +24,7 @@ static volatile int ap_continue;
 
 static void ap_boot(void)
 {
+	printf("ap started\n");
 	ap_started = 1;
 	while (!ap_continue)
 		cpu_relax();
@@ -32,7 +33,6 @@ static void ap_boot(void)
 	time_cpu_setup();
 	vmx_setup();
 	local_int_enable();
-	printf("ap started\n");
 	while (1)
 		cpu_relax();
 }
