@@ -9,11 +9,11 @@ SECTIONS
 	kernel_phys_begin = .;
 	text_phys_begin = .;
 	.bootstrap : { *(.bootstrap) }
-	.text : { *(.text) }
-	.rodata : { *(.rodata) }
-	.data : { *(.data) }
+	.text : { *(.text) *(.text.*) }
+	.rodata : { *(.rodata) *(.rodata.*) }
+	.data : { *(.data) *(.data.*) }
 	data_phys_end = .;
-	.bss : { *(.bss) }
+	.bss : { *(.bss) *(.bss.*) }
 	bss_phys_end = .;
 	kernel_phys_end = .;
 }
