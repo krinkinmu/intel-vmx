@@ -129,6 +129,7 @@ void mem_cache_setup(struct mem_cache *cache, size_t size, size_t align)
 {
 	mem_cache_layout_setup(cache, size, align);
 
+	spin_lock_init(&cache->lock);
 	list_init(&cache->free_pools);
 	list_init(&cache->partial_pools);
 	list_init(&cache->busy_pools);
@@ -206,7 +207,7 @@ static void mem_pool_free(struct mem_cache *cache, struct mem_pool *pool,
 	BUG_ON(pool->free > cache->obj_count);
 }
 
-void *mem_cache_alloc(struct mem_cache *cache)
+static void *__mem_cache_alloc(struct mem_cache *cache)
 {
 	if (!list_empty(&cache->partial_pools)) {
 		struct list_head *ptr = list_first(&cache->partial_pools);
@@ -245,7 +246,16 @@ void *mem_cache_alloc(struct mem_cache *cache)
 	return data;
 }
 
-void mem_cache_free(struct mem_cache *cache, void *ptr)
+void *mem_cache_alloc(struct mem_cache *cache)
+{
+	const unsigned long flags = spin_lock_save(&cache->lock);
+	void *data = __mem_cache_alloc(cache);
+
+	spin_unlock_restore(&cache->lock, flags);
+	return data;
+}
+
+static void __mem_cache_free(struct mem_cache *cache, void *ptr)
 {
 	const size_t pool_size = (size_t)1 << (cache->pool_order + PAGE_SHIFT);
 	const uintptr_t addr = align_down((uintptr_t)ptr, pool_size);
@@ -262,4 +272,12 @@ void mem_cache_free(struct mem_cache *cache, void *ptr)
 		list_del(&pool->ll);
 		list_add(&pool->ll, &cache->free_pools);
 	}
+}
+
+void mem_cache_free(struct mem_cache *cache, void *ptr)
+{
+	const unsigned long flags = spin_lock_save(&cache->lock);
+
+	__mem_cache_free(cache, ptr);
+	spin_unlock_restore(&cache->lock, flags);
 }

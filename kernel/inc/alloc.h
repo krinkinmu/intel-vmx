@@ -2,10 +2,12 @@
 #define __ALLOC_H__
 
 #include <stddef.h>
+#include <spinlock.h>
 #include <memory.h>
 #include <list.h>
 
 struct mem_cache {
+	struct spinlock lock;
 	struct list_head free_pools;
 	struct list_head partial_pools;
 	struct list_head busy_pools;
