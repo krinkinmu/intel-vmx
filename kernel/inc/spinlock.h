@@ -4,8 +4,8 @@
 #include <stdatomic.h>
 
 struct spinlock {
-	atomic_int next;
-	atomic_int current;
+	atomic_uint next;
+	atomic_uint current;
 };
 
 void spin_lock_init(struct spinlock *lock);
