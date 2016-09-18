@@ -60,8 +60,8 @@ static void irq_handle(int irq)
 	const struct irq_desc *desc = &irq_desc[irq];
 
 	BUG_ON(!desc->handler);
-	desc->handler();
 	ack_irq(irq);
+	desc->handler();
 }
 
 void isr_handler(struct frame *frame)
