@@ -64,10 +64,10 @@ void register_exception_handler(int exception, exception_handler_t handler);
 void register_irq_handler(int irq, irq_handler_t handler);
 
 static inline void local_int_enable(void)
-{ __asm__ volatile ("sti"); }
+{ __asm__ volatile ("sti" : : : "cc"); }
 
 static inline void local_int_disable(void)
-{ __asm__ volatile ("cli"); }
+{ __asm__ volatile ("cli" : : : "cc"); }
 
 void register_irq(int irq, const struct irq_info *info);
 void activate_irq(int irq);
