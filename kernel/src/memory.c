@@ -1,4 +1,5 @@
 #include <memory.h>
+#include <spinlock.h>
 #include <string.h>
 #include <balloc.h>
 #include <debug.h>
@@ -39,6 +40,7 @@ static inline void page_set_busy(struct page *page)
 }
 
 struct page_alloc_zone {
+	struct spinlock lock;
 	struct list_head ll;
 	uintptr_t begin;
 	uintptr_t end;
@@ -75,6 +77,7 @@ static void page_alloc_zone_setup(uintptr_t zbegin, uintptr_t zend)
 
 	for (int i = 0; i != MAX_ORDER + 1; ++i)
 		list_init(&zone->order[i]);
+	spin_lock_init(&zone->lock);
 	list_add_tail(&zone->ll, &page_alloc_zones);
 }
 
@@ -216,7 +219,7 @@ void page_alloc_setup(void)
 	}
 }
 
-static struct page *page_alloc_zone(struct page_alloc_zone *zone, int order)
+static struct page *__page_alloc_zone(struct page_alloc_zone *zone, int order)
 {
 	int current = order;
 
@@ -244,6 +247,15 @@ static struct page *page_alloc_zone(struct page_alloc_zone *zone, int order)
 
 	page_set_busy(page);
 
+	return page;
+}
+
+static struct page *page_alloc_zone(struct page_alloc_zone *zone, int order)
+{
+	const unsigned long flags = spin_lock_save(&zone->lock);
+	struct page *page = __page_alloc_zone(zone, order);
+
+	spin_unlock_restore(&zone->lock, flags);
 	return page;
 }
 
@@ -303,7 +315,8 @@ uintptr_t page_alloc(int order, unsigned long flags)
 	return 0;
 }
 
-static void page_free_zone(struct page_alloc_zone *zone, struct page *page, int order)
+static void __page_free_zone(struct page_alloc_zone *zone, struct page *page,
+			int order)
 {
 	uintptr_t idx = zone->begin + (page - zone->pages);
 
@@ -330,6 +343,15 @@ static void page_free_zone(struct page_alloc_zone *zone, struct page *page, int 
 	list_add(&page->ll, &zone->order[order]);
 	page_set_order(page, order);
 	page_set_free(page);
+}
+
+static void page_free_zone(struct page_alloc_zone *zone, struct page *page,
+			int order)
+{
+	const unsigned long flags = spin_lock_save(&zone->lock);
+
+	__page_free_zone(zone, page, order);
+	spin_unlock_restore(&zone->lock, flags);
 }
 
 void page_free(uintptr_t addr, int order)
