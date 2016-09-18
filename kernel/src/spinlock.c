@@ -5,9 +5,9 @@
 static void __spin_lock(struct spinlock *lock)
 {
 	const unsigned ticket = atomic_fetch_add_explicit(&lock->next, 1,
-				memory_order_acquire);
+				memory_order_relaxed);
 
-	while (atomic_load_explicit(&lock->current, memory_order_relaxed)
+	while (atomic_load_explicit(&lock->current, memory_order_acquire)
 				!= ticket)
 		cpu_relax();
 }
