@@ -3,7 +3,7 @@ LD ?= ld
 AR ?= ar
 
 CFLAGS := -g -m64 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -ffreestanding \
-	-mcmodel=small -Wall -Wextra -Werror -pedantic -std=c99 \
+	-mcmodel=small -Wall -Wextra -Werror -pedantic -std=c11 \
 	-Wframe-larger-than=1024 -Wstack-usage=1024 \
 	-Wno-unknown-warning-option $(if $(DEBUG),-DDEBUG,)
 LFLAGS := -nostdlib -z max-page-size=0x1000

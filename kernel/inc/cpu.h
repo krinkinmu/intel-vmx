@@ -6,6 +6,7 @@
 #define CR4_VMXE	(1ul << 13)
 #define RFLAGS_CF	(1ul << 0)
 #define RFLAGS_ZF	(1ul << 6)
+#define RFLAGS_IF	(1ul << 9)
 #define KERNEL_TSS	0x18
 #define KERNEL_DATA	0x10
 #define KERNEL_CODE	0x08
@@ -113,6 +114,15 @@ static inline unsigned short read_tr(void)
 
 	__asm__ volatile ("str %0" : "=a"(tr));
 	return tr;
+}
+
+static inline unsigned long rflags(void)
+{
+	unsigned long flags;
+
+	__asm__ volatile ("pushf ; pop %0" : "=a"(flags) : : "memory");
+
+	return flags;
 }
 
 void gdt_cpu_create(struct desc_ptr *ptr);
