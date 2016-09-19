@@ -7,9 +7,14 @@
 #define PAGE_SIZE	(1 << PAGE_SHIFT)
 #define PAGE_MASK	(PAGE_SIZE - 1)
 #define MAX_ORDER	18
-#define LOW_MEMORY	(1ull << 32)
 
-#define PA_LOW_MEM	(1ul << 0)
+#define HIGH_MEMORY	(~(uintptr_t)0)
+#define NORMAL_MEMORY	(1ull << 32)
+#define LOW_MEMORY	(1ull << 20)
+
+#define PA_LOW		(1ul << 0)
+#define PA_NORMAL	(1ul << 1)
+#define PA_HIGH		(1ul << 2)
 
 struct page;
 

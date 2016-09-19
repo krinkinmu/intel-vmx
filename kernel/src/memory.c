@@ -8,10 +8,24 @@
 
 #define PAGE_ORDER_MASK	0xfful
 #define PAGE_FREE_MASK	(1ul << 8)
+#define MEMORY_RANGES	(sizeof(memory_range)/sizeof(memory_range[0]))
+
+struct memory_range {
+	uintptr_t begin;
+	uintptr_t end;
+	unsigned long flags;
+};
 
 struct page {
 	struct list_head ll;
 	unsigned long flags;
+};
+
+
+static const struct memory_range memory_range[] = {
+	{0, LOW_MEMORY, PA_LOW},
+	{LOW_MEMORY, NORMAL_MEMORY, PA_NORMAL},
+	{NORMAL_MEMORY, HIGH_MEMORY, PA_HIGH}
 };
 
 static inline int page_order(const struct page *page)
@@ -44,13 +58,15 @@ struct page_alloc_zone {
 	struct list_head ll;
 	uintptr_t begin;
 	uintptr_t end;
+	unsigned long flags;
 	struct list_head order[MAX_ORDER + 1];
 	struct page pages[1];
 };
 
 static struct list_head page_alloc_zones;
 
-static void page_alloc_zone_setup(uintptr_t zbegin, uintptr_t zend)
+static void __page_alloc_zone_setup(uintptr_t zbegin, uintptr_t zend,
+			unsigned long flags)
 {
 	const uintptr_t page_mask = ~((uintptr_t)PAGE_MASK);
 	const uintptr_t begin_addr = (zbegin + PAGE_SIZE - 1) & page_mask;
@@ -72,6 +88,7 @@ static void page_alloc_zone_setup(uintptr_t zbegin, uintptr_t zend)
 	printf("page alloc zone [0x%llx; 0x%llx]\n", (unsigned long long)begin,
 				(unsigned long long)end);
 	memset(zone->pages, 0, sizeof(struct page) * (zone->end - zone->end));
+	zone->flags = flags;
 	zone->begin = begin;
 	zone->end = end;
 
@@ -79,6 +96,23 @@ static void page_alloc_zone_setup(uintptr_t zbegin, uintptr_t zend)
 		list_init(&zone->order[i]);
 	spin_lock_init(&zone->lock);
 	list_add_tail(&zone->ll, &page_alloc_zones);
+}
+
+static void page_alloc_zone_setup(const struct memory_node *node)
+{
+	for (int i = 0; i != MEMORY_RANGES; ++i) {
+		const struct memory_range *range = &memory_range[i];
+
+		if (node->end <= range->begin || node->begin >= range->end)
+			continue;
+
+		const uintptr_t begin = node->begin > range->begin ?
+					node->begin : range->begin;
+		const uintptr_t end = node->end < range->end ?
+					node->end : range->end;
+
+		__page_alloc_zone_setup(begin, end, range->flags);
+	}
 }
 
 static struct page_alloc_zone *page_alloc_zone_find(uintptr_t idx)
@@ -123,7 +157,7 @@ uintptr_t page_addr(const struct page *page)
 	return (zone->begin + (page - zone->pages)) << PAGE_SHIFT;
 }
 
-static void page_alloc_zone_free(uintptr_t zbegin, uintptr_t zend)
+static void __page_alloc_zone_free(uintptr_t zbegin, uintptr_t zend)
 {
 	const uintptr_t page_mask = ~((uintptr_t)PAGE_MASK);
 	const uintptr_t begin_addr = (zbegin + PAGE_SIZE - 1) & page_mask;
@@ -161,6 +195,23 @@ static void page_alloc_zone_free(uintptr_t zbegin, uintptr_t zend)
 	}
 }
 
+static void page_alloc_zone_free(const struct memory_node *node)
+{
+	for (int i = 0; i != MEMORY_RANGES; ++i) {
+		const struct memory_range *range = &memory_range[i];
+
+		if (node->end <= range->begin || node->begin >= range->end)
+			continue;
+
+		const uintptr_t begin = node->begin > range->begin ?
+					node->begin : range->begin;
+		const uintptr_t end = node->end < range->end ?
+					node->end : range->end;
+
+		__page_alloc_zone_free(begin, end);
+	}
+}
+
 static void page_alloc_zone_dump(const struct page_alloc_zone *zone)
 {
 	printf("zone 0x%llx-0x%llx:\n",
@@ -184,28 +235,18 @@ void page_alloc_setup(void)
 	list_init(&page_alloc_zones);
 
 	while (ptr) {
-		struct memory_node *node = RB2MEMORY_NODE(ptr);
+		const struct memory_node *node = RB2MEMORY_NODE(ptr);
 
-		if (node->end <= LOW_MEMORY || node->begin >= LOW_MEMORY) {
-			page_alloc_zone_setup(node->begin, node->end);
-		} else {
-			page_alloc_zone_setup(node->begin, LOW_MEMORY);
-			page_alloc_zone_setup(LOW_MEMORY, node->end);
-		}
+		page_alloc_zone_setup(node);
 		ptr = rb_next(ptr);
 	}
 
 	ptr = rb_leftmost(free_ranges.root);
 
 	while (ptr) {
-		struct memory_node *node = RB2MEMORY_NODE(ptr);
+		const struct memory_node *node = RB2MEMORY_NODE(ptr);
 
-		if (node->end <= LOW_MEMORY || node->begin >= LOW_MEMORY) {
-			page_alloc_zone_free(node->begin, node->end);
-		} else {
-			page_alloc_zone_free(node->begin, LOW_MEMORY);
-			page_alloc_zone_free(LOW_MEMORY, node->end);
-		}
+		page_alloc_zone_free(node);
 		ptr = rb_next(ptr);
 	}
 
@@ -271,10 +312,8 @@ struct page *__page_alloc(int order, unsigned long flags)
 		struct page_alloc_zone *zone = CONTAINER_OF(ptr,
 					struct page_alloc_zone, ll);
 
-		if ((flags & PA_LOW_MEM) != 0) {
-			if (zone->begin >= (LOW_MEMORY >> PAGE_SHIFT))
-				continue;
-		}
+		if ((zone->flags & flags) == 0ul)
+			continue;
 
 		struct page *page = page_alloc_zone(zone, order);
 
@@ -297,10 +336,8 @@ uintptr_t page_alloc(int order, unsigned long flags)
 		struct page_alloc_zone *zone = CONTAINER_OF(ptr,
 					struct page_alloc_zone, ll);
 
-		if ((flags & PA_LOW_MEM) != 0) {
-			if (zone->begin >= (LOW_MEMORY >> PAGE_SHIFT))
-				continue;
-		}
+		if ((zone->flags & flags) == 0ul)
+			continue;
 
 		struct page *page = page_alloc_zone(zone, order);
 

@@ -134,7 +134,7 @@ void vmx_setup(void)
 
 	uintptr_t vmxon_addr;
 
-	BUG_ON(!(vmxon_addr = page_alloc(1, PA_LOW_MEM)));
+	BUG_ON(!(vmxon_addr = page_alloc(1, PA_NORMAL)));
 	vmxon_setup((volatile void *)vmxon_addr);
 
 	write_cr4(read_cr4() | CR4_VMXE);
@@ -258,7 +258,7 @@ static void vmcs_set_defctrls(void)
 
 static uintptr_t vmcs_alloc(void)
 {
-	const uintptr_t vmcs = page_alloc(0, PA_LOW_MEM);
+	const uintptr_t vmcs = page_alloc(0, PA_NORMAL);
 	volatile uint32_t *ptr = (volatile uint32_t *)vmcs;
 
 	BUG_ON(!ptr);

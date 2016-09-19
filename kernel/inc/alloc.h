@@ -23,7 +23,7 @@ struct mem_cache {
 void mem_cache_setup(struct mem_cache *cache, size_t size, size_t align);
 void mem_cache_release(struct mem_cache *cache);
 
-void *mem_cache_alloc(struct mem_cache *cache);
+void *mem_cache_alloc(struct mem_cache *cache, unsigned long flags);
 void mem_cache_free(struct mem_cache *cache, void *ptr);
 
 #endif /*__ALLOC_H__*/

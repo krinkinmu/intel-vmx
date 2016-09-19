@@ -103,9 +103,10 @@ static void mem_pool_bitmap_setup(struct mem_cache *cache,
 		pool->bitmask[w] = ~0ul;
 }
 
-static struct mem_pool *mem_pool_create(struct mem_cache *cache)
+static struct mem_pool *mem_pool_create(struct mem_cache *cache,
+			unsigned long flags)
 {
-	const uintptr_t addr = page_alloc(cache->pool_order, 0);
+	const uintptr_t addr = page_alloc(cache->pool_order, flags);
 
 	if (!addr)
 		return 0;
@@ -207,7 +208,7 @@ static void mem_pool_free(struct mem_cache *cache, struct mem_pool *pool,
 	BUG_ON(pool->free > cache->obj_count);
 }
 
-static void *__mem_cache_alloc(struct mem_cache *cache)
+static void *__mem_cache_alloc(struct mem_cache *cache, unsigned long flags)
 {
 	if (!list_empty(&cache->partial_pools)) {
 		struct list_head *ptr = list_first(&cache->partial_pools);
@@ -235,7 +236,7 @@ static void *__mem_cache_alloc(struct mem_cache *cache)
 		return data;
 	}
 
-	struct mem_pool *pool = mem_pool_create(cache);
+	struct mem_pool *pool = mem_pool_create(cache, flags);
 
 	if (!pool)
 		return 0;
@@ -246,10 +247,10 @@ static void *__mem_cache_alloc(struct mem_cache *cache)
 	return data;
 }
 
-void *mem_cache_alloc(struct mem_cache *cache)
+void *mem_cache_alloc(struct mem_cache *cache, unsigned long alloc_flags)
 {
 	const unsigned long flags = spin_lock_save(&cache->lock);
-	void *data = __mem_cache_alloc(cache);
+	void *data = __mem_cache_alloc(cache, alloc_flags);
 
 	spin_unlock_restore(&cache->lock, flags);
 	return data;
