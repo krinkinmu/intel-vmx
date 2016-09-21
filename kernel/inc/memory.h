@@ -15,6 +15,7 @@
 #define PA_LOW		(1ul << 0)
 #define PA_NORMAL	(1ul << 1)
 #define PA_HIGH		(1ul << 2)
+#define PA_ANY		(PA_LOW | PA_NORMAL | PA_HIGH)
 
 struct page;
 
