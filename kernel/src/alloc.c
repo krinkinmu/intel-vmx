@@ -3,6 +3,7 @@
 #include <string.h>
 #include <alloc.h>
 #include <debug.h>
+#include <rbtree.h>
 
 
 #define WORD_SZ		sizeof(unsigned long long)
@@ -281,4 +282,152 @@ void mem_cache_free(struct mem_cache *cache, void *ptr)
 
 	__mem_cache_free(cache, ptr);
 	spin_unlock_restore(&cache->lock, flags);
+}
+
+
+struct mem_entry {
+	struct rb_node rb;
+	void *ptr;
+	struct mem_cache *cache;
+	int order;
+};
+
+static struct mem_cache mem_entries_cache;
+static struct rb_tree mem_entries;
+static struct spinlock mem_entries_lock;
+
+#define MEM_POOLS	(sizeof(mem_pool_size) / sizeof(mem_pool_size[0]))
+
+static size_t mem_pool_size[] = {
+	64,   128,  192,  256,  320,  384,  448,
+	512,  576,  640,  704,  768,  832,  896,
+	960,  1024, 1152, 1280, 1408, 1536, 1664,
+	1792, 1920, 2048, 2304, 2560, 2816, 3072,
+	3584, 4096, 5120, 6144, 7168, 8192
+};
+static struct mem_cache mem_pool[MEM_POOLS];
+
+static struct mem_entry *mem_entry_create(void)
+{
+	return mem_cache_alloc(&mem_entries_cache, PA_ANY);
+}
+
+static void mem_entry_destroy(struct mem_entry *entry)
+{
+	mem_cache_free(&mem_entries_cache, entry);
+}
+
+static void __mem_entry_insert(struct mem_entry *new)
+{
+	struct rb_node **plink = &mem_entries.root;
+	struct rb_node *parent = 0;
+
+	while (*plink) {
+		const struct mem_entry *e = TREE_ENTRY(*plink,
+					struct mem_entry, rb);
+
+		parent = *plink;
+		if (e->ptr < new->ptr)
+			plink = &parent->right;
+		else
+			plink = &parent->left;
+	}
+
+	rb_link(&new->rb, parent, plink);
+	rb_insert(&new->rb, &mem_entries);
+}
+
+static struct mem_entry *__mem_entry_lookup(void *addr)
+{
+	struct rb_node *ptr = mem_entries.root;
+
+	while (ptr) {
+		struct mem_entry *e = TREE_ENTRY(ptr, struct mem_entry, rb);
+
+		if (e->ptr == addr)
+			return e;
+
+		if (e->ptr < addr)
+			ptr = ptr->right;
+		else
+			ptr = ptr->left;
+	}
+
+	return 0;
+}
+
+static void __mem_entry_remove(struct mem_entry *entry)
+{
+	rb_erase(&entry->rb, &mem_entries);
+}
+
+static struct mem_cache *mem_pool_lookup(size_t size)
+{
+	for (int i = 0; i != MEM_POOLS; ++i)
+		if (mem_pool_size[i] >= size)
+			return &mem_pool[i];
+	return 0;
+}
+
+static int mem_order_calculate(size_t size)
+{
+	int order;
+
+	for (order = 0; order != MAX_ORDER + 1; ++order)
+		if (((size_t)1 << (order + PAGE_SHIFT)) >= size)
+			break;
+	return order;
+}
+
+void mem_alloc_setup(void)
+{
+	const size_t size = sizeof(struct mem_entry);
+
+	mem_cache_setup(&mem_entries_cache, size, size);
+	spin_lock_init(&mem_entries_lock);
+
+	for (int i = 0; i != MEM_POOLS; ++i)
+		mem_cache_setup(&mem_pool[i], mem_pool_size[i],
+					mem_pool_size[0]);
+}
+
+void *mem_alloc(size_t size)
+{
+	struct mem_entry *entry = mem_entry_create();
+
+	if (!entry)
+		return 0;
+
+	entry->cache = mem_pool_lookup(size);
+	if (entry->cache) {
+		entry->ptr = mem_cache_alloc(entry->cache, PA_ANY);
+		entry->order = MAX_ORDER + 1;
+	} else {
+		entry->order = mem_order_calculate(size);
+		entry->ptr = (void *)page_alloc(entry->order, PA_ANY);
+	}
+
+	if (!entry->ptr) {
+		mem_cache_free(&mem_entries_cache, entry);
+
+		return 0;
+	}
+
+	const unsigned long flags = spin_lock_save(&mem_entries_lock);
+	
+	__mem_entry_insert(entry);
+	spin_unlock_restore(&mem_entries_lock, flags);
+
+	return entry->ptr;
+}
+
+void mem_free(void *ptr)
+{
+	const unsigned long flags = spin_lock_save(&mem_entries_lock);
+	struct mem_entry *entry = __mem_entry_lookup(ptr);
+
+	BUG_ON(!entry);
+	__mem_entry_remove(entry);
+	spin_unlock_restore(&mem_entries_lock, flags);
+	mem_entry_destroy(entry);
 }

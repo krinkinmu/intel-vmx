@@ -26,4 +26,8 @@ void mem_cache_release(struct mem_cache *cache);
 void *mem_cache_alloc(struct mem_cache *cache, unsigned long flags);
 void mem_cache_free(struct mem_cache *cache, void *ptr);
 
+void mem_alloc_setup(void);
+void *mem_alloc(size_t size);
+void mem_free(void *ptr);
+
 #endif /*__ALLOC_H__*/
