@@ -4,7 +4,7 @@
 
 	.section .bootstrap, "ax"
 	.code32
-	.global start32
+	.global start32, bootstrap_gdt
 	.extern main
 
 	.align 16
@@ -23,13 +23,18 @@ multiboot_header:
 	.long start32
 
 	.align 16
-gdt:
+bootstrap_gdt:
         .quad 0x0000000000000000
 	.quad 0x00209b0000000000
 	.quad 0x0020930000000000
-gdt_ptr:
-	.word (gdt_ptr - gdt - 1)
-	.long gdt
+
+bootstrap_gdt_ptr:
+	.word (bootstrap_gdt_ptr - bootstrap_gdt - 1)
+	.long bootstrap_gdt
+
+bootstrap_idt_ptr:
+	.word 0
+	.long 0
 
 1:
 	/* Save pointer to multiboot info structure */
@@ -85,8 +90,9 @@ gdt_ptr:
 	orl $(CR0_PG | CR0_NE), %eax
 	movl %eax, %cr0
 
+	lidt bootstrap_idt_ptr
 	/* Enable 64bit gdt */
-	lgdt gdt_ptr
+	lgdt bootstrap_gdt_ptr
 	ljmpl $0x08, $start64
 
 	.code64
