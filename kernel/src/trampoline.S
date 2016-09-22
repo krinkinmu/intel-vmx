@@ -1,6 +1,6 @@
-	.data
 	.code16
 	.global tr_begin, tr_end
+	.extern bootstrap_gdt
 	.align 0x1000
 tr_base = .
 tr_begin:
@@ -9,8 +9,8 @@ tr_begin:
 	movw %ax, %ds
 	movw %ax, %es
 
-	lidt tr_idt - tr_base
-	lgdt tr_gdt - tr_base
+	lidt bootstrap_idt_ptr - tr_base
+	lgdt bootstrap_gdt_ptr - tr_base
 
 #define CR4_PAE (1 << 5)
 	movl %cr4, %eax
@@ -36,10 +36,15 @@ tr_begin:
 	movl stackend - tr_base, %eax
 	movl %eax, %esp
 
-	movl startup - tr_base, %eax
-	pushl $0x0
-	pushl %eax
-	ljmpl $0x08, $start64
+	movl startup - tr_base, %ebx
+	ljmpl $0x08, $ap_start64
+
+bootstrap_gdt_ptr:
+	.word 0xffff
+	.long bootstrap_gdt
+bootstrap_idt_ptr:
+	.word 0
+	.long 0
 
 	.align 4
 	.long 0x13131313
@@ -49,16 +54,10 @@ stackend:
 	.long 0x0
 startup:
 	.long 0x0
-tr_gdt:
-	.word 0x0
-	.quad 0x0
-tr_idt:
-	.word 0x0
-	.quad 0x0
 tr_end:
 
 	.code64
-start64:
+ap_start64:
 	movw $0x10, %ax
 	movw %ax, %ds
 	movw %ax, %es
@@ -66,10 +65,8 @@ start64:
 	movw %ax, %gs
 	movw %ax, %ss
 
-	movw $0x18, %ax
-	ltr %ax
-
-	popq %rax
+	xorq %rax, %rax
+	movl %ebx, %eax
 	call *%rax
 
 	cli
