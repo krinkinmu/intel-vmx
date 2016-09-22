@@ -1,4 +1,4 @@
-#include <balloc.h>
+#include <alloc.h>
 #include <debug.h>
 #include <string.h>
 #include <ioport.h>
@@ -15,11 +15,9 @@ struct tr_data {
 	uint32_t pgtable;
 	uint32_t stackend;
 	uint32_t startup;
-	struct desc_ptr gdt;
-	struct desc_ptr idt;
 } __attribute__((packed));
 
-static volatile int ap_started;	/* TODO: must be atomic */
+static volatile int ap_started;
 static volatile int ap_continue;
 
 static void ap_boot(void)
@@ -29,10 +27,11 @@ static void ap_boot(void)
 	while (!ap_continue)
 		cpu_relax();
 
+	gdt_cpu_setup();
 	ints_cpu_setup();
 	time_cpu_setup();
-	vmx_setup();
 	local_int_enable();
+	vmx_setup();
 	while (1)
 		cpu_relax();
 }
@@ -42,7 +41,6 @@ static void tr_data_setup(struct tr_data *data)
 	uint64_t pgtable;
 
 	pgtable = read_cr3();
-	BUG_ON(pgtable & (0xffffffffull << 32));
 	data->pgtable = pgtable;
 	data->startup = (uintptr_t)&ap_boot;
 }
@@ -62,7 +60,7 @@ static void tr_setup(unsigned long trampoline)
 	cmos_write(0x0f, 0x0a);
 }
 
-static void startup_ap(int apic_id, unsigned long startup)
+static void startup_ap(int apic_id, uint32_t startup)
 {
 	ap_started = 0;
 
@@ -79,10 +77,29 @@ static void startup_ap(int apic_id, unsigned long startup)
 		cpu_relax();
 }
 
+static int smp_trampoline_order(size_t size)
+{
+	int order = 0;
+
+	while (size > ((size_t)1ul << (PAGE_SHIFT + order)))
+		++order;
+
+	return order;
+}
+
+static struct tr_data *smp_tr_data_find(char *begin, char *end)
+{
+	for (char *ptr = begin; ptr < end; ptr += 4) {
+		const uint32_t magic = *((uint32_t *)ptr);
+
+		if (magic == 0x13131313ul)
+			return (struct tr_data *)ptr;
+	}
+	return 0;
+}
+
 void smp_early_setup(void)
 {
-	static const uintptr_t from = 0x1000;
-	static const uintptr_t to = 0xa0000;
 	extern char tr_begin[];
 	extern char tr_end[];
 
@@ -90,48 +107,37 @@ void smp_early_setup(void)
 		return;
 
 	const size_t size = (uintptr_t)tr_end - (uintptr_t)tr_begin;
+	const int order = smp_trampoline_order(size);
 	struct tr_data *tr_data = 0; 
-	char *trampoline = (char *)__balloc_alloc(size, /* align = */0x1000,
-				from, to);
+	char *trampoline = (char *)page_alloc(order, PA_LOW);
 
-	BUG_ON((uintptr_t)trampoline == to);
+	BUG_ON(!trampoline);
 	printf("place trampoline at 0x%lx\n", (unsigned long)trampoline);
 	memcpy(trampoline, tr_begin, size);
 
-	for (char *ptr = trampoline; ptr < trampoline + size; ptr += 4) {
-		const uint32_t magic = *((uint32_t *)ptr);
+	tr_data = smp_tr_data_find(trampoline, trampoline + size);
 
-		if (magic == 0x13131313ul) {
-			tr_data = (struct tr_data *)ptr;
-			break;
-		}
-	}
 	BUG_ON(!tr_data);
 	tr_data_setup(tr_data);
 	tr_setup((unsigned long)trampoline);
 
 	for (int i = 0; i != local_apics; ++i) {
-		static const size_t stack_size = 0x1000;
-		static const uintptr_t stack_from = 0x1000;
-		static const uintptr_t stack_to = ((uintptr_t)1 << 32) - 1;
-
 		const int apic_id = local_apic_ids[i];
+		const int order = 0;
+		const size_t size = (size_t)1 << (order + PAGE_SHIFT);
 
 		if (apic_id == local_apic_id())
 			continue;
 
-		const uintptr_t stack = __balloc_alloc(stack_size,
-					/* align = */0x1000,
-					stack_from, stack_to);
+		const uintptr_t stack = page_alloc(order, PA_NORMAL);
 
-		BUG_ON(stack == stack_to); 
+		BUG_ON(!stack);
 		printf("stack for APIC id %d at 0x%lx\n", apic_id,
 					(unsigned long)stack);
-		tr_data->stackend = stack + stack_size;
-		gdt_cpu_create(&tr_data->gdt);
+		tr_data->stackend = stack + size;
 		startup_ap(apic_id, (unsigned long)trampoline);
 	}
-	balloc_free((uintptr_t)trampoline, (uintptr_t)trampoline + size);
+	page_free((uintptr_t)trampoline, order);
 }
 
 void smp_setup(void)

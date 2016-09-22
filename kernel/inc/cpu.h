@@ -125,7 +125,6 @@ static inline unsigned long rflags(void)
 	return flags;
 }
 
-void gdt_cpu_create(struct desc_ptr *ptr);
-void gdt_cpu_setup(const struct desc_ptr *ptr);
+void gdt_cpu_setup(void);
 
 #endif /*__CPU_H__*/
