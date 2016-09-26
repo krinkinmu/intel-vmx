@@ -12,7 +12,18 @@ SECTIONS
 	.text : { *(.text) *(.text.*) }
 	.rodata : { *(.rodata) *(.rodata.*) }
 	.data : { *(.data) *(.data.*) }
+
+	.tdata : {
+		percpu_phys_begin = .;
+		*(.tdata) *(.tdata.*)
+	}
 	data_phys_end = .;
+
+	.tbss : {
+		*(.tbss) *(.tbss.)
+		percpu_phys_end = .;
+	}
+
 	.bss : { *(.bss) *(.bss.*) }
 	bss_phys_end = .;
 	kernel_phys_end = .;
