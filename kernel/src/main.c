@@ -9,7 +9,9 @@
 #include <smpboot.h>
 #include <memory.h>
 #include <alloc.h>
+#include <percpu.h>
 #include <vmx.h>
+
 
 static void acpi_early_setup(void)
 {
@@ -43,6 +45,7 @@ void main(const struct mboot_info *info)
 	time_setup();
 	smp_early_setup();
 
+	percpu_cpu_setup();
 	gdt_cpu_setup();
 	ints_cpu_setup();
 	time_cpu_setup();
