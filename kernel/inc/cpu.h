@@ -7,6 +7,7 @@
 #define RFLAGS_CF	(1ul << 0)
 #define RFLAGS_ZF	(1ul << 6)
 #define RFLAGS_IF	(1ul << 9)
+#define RFLAGS_RESERVED	(1ul << 2)
 #define KERNEL_TSS	0x18
 #define KERNEL_DATA	0x10
 #define KERNEL_CODE	0x08

@@ -7,6 +7,7 @@
 #include <ints.h>
 #include <cpu.h>
 #include <percpu.h>
+#include <thread.h>
 #include <vmx.h>
 
 #define CMOS_PORT(x) (0x70 + x)
@@ -29,11 +30,12 @@ static void ap_boot(void)
 		cpu_relax();
 
 	percpu_cpu_setup();
+	threads_cpu_setup();
 	gdt_cpu_setup();
 	ints_cpu_setup();
 	time_cpu_setup();
 	local_int_enable();
-	vmx_setup();
+	//vmx_setup();
 	while (1)
 		cpu_relax();
 }
