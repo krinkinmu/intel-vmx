@@ -2,6 +2,7 @@
 #define __INTERRUPT_H__
 
 #include <stdint.h>
+#include <cpu.h>
 
 #define INT_ACTIVE_HIGH	0
 #define INT_ACTIVE_LOW	1
@@ -68,6 +69,20 @@ static inline void local_int_enable(void)
 
 static inline void local_int_disable(void)
 { __asm__ volatile ("cli" : : : "cc"); }
+
+static inline unsigned long local_int_save(void)
+{
+	const unsigned long flags = rflags();
+
+	local_int_disable();
+	return flags;
+}
+
+static inline void local_int_restore(unsigned long flags)
+{
+	if (flags & RFLAGS_IF)
+		local_int_enable();
+}
 
 void register_irq(int irq, const struct irq_info *info);
 void activate_irq(int irq);

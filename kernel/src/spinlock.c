@@ -31,9 +31,8 @@ void spin_lock_init(struct spinlock *lock)
 
 unsigned long spin_lock_save(struct spinlock *lock)
 {
-	const unsigned long flags = rflags();
+	const unsigned long flags = local_int_save();
 
-	local_int_disable();
 	__spin_lock(lock);
 	return flags;
 }
@@ -41,8 +40,7 @@ unsigned long spin_lock_save(struct spinlock *lock)
 void spin_unlock_restore(struct spinlock *lock, unsigned long flags)
 {
 	__spin_unlock(lock);
-	if (flags & RFLAGS_IF)
-		local_int_enable();
+	local_int_restore(flags);
 }
 
 void rwlock_init(struct rwlock *lock)
@@ -97,9 +95,8 @@ static void __write_unlock(struct rwlock *lock)
 
 unsigned long read_lock_save(struct rwlock *lock)
 {
-	const unsigned long flags = rflags();
+	const unsigned long flags = local_int_save();
 
-	local_int_disable();
 	__read_lock(lock);
 	return flags;
 }
@@ -107,15 +104,13 @@ unsigned long read_lock_save(struct rwlock *lock)
 void read_unlock_restore(struct rwlock *lock, unsigned long flags)
 {
 	__read_unlock(lock);
-	if (flags & RFLAGS_IF)
-		local_int_enable();
+	local_int_restore(flags);
 }
 
 unsigned long write_lock_save(struct rwlock *lock)
 {
-	const unsigned long flags = rflags();
+	const unsigned long flags = local_int_save();
 
-	local_int_disable();
 	__write_lock(lock);
 	return flags;
 }
@@ -123,6 +118,5 @@ unsigned long write_lock_save(struct rwlock *lock)
 void write_unlock_restore(struct rwlock *lock, unsigned long flags)
 {
 	__write_unlock(lock);
-	if (flags & RFLAGS_IF)
-		local_int_enable();
+	local_int_restore(flags);
 }
