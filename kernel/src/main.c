@@ -10,6 +10,7 @@
 #include <memory.h>
 #include <alloc.h>
 #include <percpu.h>
+#include <thread.h>
 #include <vmx.h>
 
 
@@ -31,6 +32,22 @@ static void gdb_hang(void)
 #endif
 }
 
+static void thread_test_fptr(void *other)
+{
+	printf("I'm %p\n", thread_current());
+	thread_switch_to(other);
+}
+
+static void thread_test(void)
+{
+	struct thread *other = thread_create(&thread_test_fptr,
+				thread_current());
+
+	printf("I'm %p\n", thread_current());
+	thread_switch_to(other);
+	thread_destroy(other);
+}
+
 void main(const struct mboot_info *info)
 {
 	gdb_hang();
@@ -38,6 +55,7 @@ void main(const struct mboot_info *info)
 	balloc_setup(info);
 	page_alloc_setup();
 	mem_alloc_setup();
+	threads_setup();
 	acpi_early_setup();
 
 	apic_setup();
@@ -46,13 +64,16 @@ void main(const struct mboot_info *info)
 	smp_early_setup();
 
 	percpu_cpu_setup();
+	threads_cpu_setup();
 	gdt_cpu_setup();
 	ints_cpu_setup();
 	time_cpu_setup();
 	local_int_enable();
 
 	smp_setup();
-	vmx_setup();
+	//vmx_setup();
+
+	thread_test();
 
 	while (1);
 }
