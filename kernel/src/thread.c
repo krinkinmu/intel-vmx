@@ -1,3 +1,4 @@
+#include <scheduler.h>
 #include <thread.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -83,6 +84,7 @@ struct thread *__thread_create(thread_fptr_t fptr, void *arg, int stack_order)
 	thread->stack_addr = stack_addr;
 	thread->stack_order = stack_order;
 	thread->stack_ptr = stack_addr + stack_size - sizeof(*frame);
+	thread_set_state(thread, THREAD_BLOCKED);
 
 	frame = (struct thread_switch_frame *)thread->stack_ptr;
 	frame->r12 = (uintptr_t)fptr;
@@ -110,6 +112,21 @@ void thread_destroy(struct thread *thread)
 struct thread *thread_current(void)
 {
 	return current;
+}
+
+void thread_activate(struct thread *thread)
+{
+	scheduler_activate_thread(thread);
+}
+
+void thread_set_state(struct thread *thread, int state)
+{
+	atomic_store_explicit(&thread->state, state, memory_order_relaxed);
+}
+
+int thread_get_state(struct thread *thread)
+{
+	return atomic_load_explicit(&thread->state, memory_order_relaxed);
 }
 
 void thread_switch_to(struct thread *next)
