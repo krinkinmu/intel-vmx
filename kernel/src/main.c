@@ -32,22 +32,6 @@ static void gdb_hang(void)
 #endif
 }
 
-static void thread_test_fptr(void *other)
-{
-	printf("I'm %p\n", thread_current());
-	thread_switch_to(other);
-}
-
-static void thread_test(void)
-{
-	struct thread *other = thread_create(&thread_test_fptr,
-				thread_current());
-
-	printf("I'm %p\n", thread_current());
-	thread_switch_to(other);
-	thread_destroy(other);
-}
-
 void main(const struct mboot_info *info)
 {
 	gdb_hang();
@@ -72,8 +56,6 @@ void main(const struct mboot_info *info)
 
 	smp_setup();
 	//vmx_setup();
-
-	thread_test();
 
 	while (1);
 }
