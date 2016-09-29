@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <limits.h>
 #include <balloc.h>
+#include <scheduler.h>
 #include <apic.h>
 #include <ints.h>
 #include <cpu.h>
@@ -354,7 +355,7 @@ static void apic_timer_calibrate(void)
 
 static void apic_timer_handler(void)
 {
-	printf("tick from %d\n", local_apic_id());
+	schedule();
 }
 
 static void apic_timer_ints_setup(void)

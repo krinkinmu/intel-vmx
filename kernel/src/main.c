@@ -11,6 +11,7 @@
 #include <alloc.h>
 #include <percpu.h>
 #include <thread.h>
+#include <scheduler.h>
 #include <vmx.h>
 
 
@@ -45,11 +46,13 @@ void main(const struct mboot_info *info)
 	apic_setup();
 	ints_setup();
 	time_setup();
+	scheduler_setup();
 	smp_early_setup();
 
 	percpu_cpu_setup();
 	threads_cpu_setup();
 	gdt_cpu_setup();
+	scheduler_cpu_setup();
 	ints_cpu_setup();
 	time_cpu_setup();
 	local_int_enable();

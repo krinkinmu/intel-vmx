@@ -20,6 +20,7 @@ static __percpu struct thread *cpu_idle;
 static struct scheduler_queue global_queue;
 static struct rwlock queues_lock;
 static struct list_head queues;
+static struct spinlock print_lock;
 
 
 static void scheduler_queue_setup(struct scheduler_queue *queue)
@@ -119,7 +120,7 @@ static void scheduler_preempt_thread(struct thread *prev)
 	spin_unlock_restore(&cpu_queue.lock, flags);
 }
 
-struct thread *scheduler_next_thread(void)
+static struct thread *scheduler_next_thread(void)
 {
 	struct thread *prev = thread_current();
 	struct thread *next;
@@ -127,9 +128,10 @@ struct thread *scheduler_next_thread(void)
 	if (!scheduler_need_preemption(prev))
 		return 0;
 
-	scheduler_preempt_thread(prev);
-	next = __scheduler_next_thread();
-	next->timestamp = current_time();
+	if ((next = __scheduler_next_thread())) {
+		scheduler_preempt_thread(prev);
+		next->timestamp = current_time();
+	}
 
 	return next;
 }
@@ -147,10 +149,23 @@ void scheduler_block_thread(void)
 	thread_set_state(thread, THREAD_BLOCKED);
 }
 
+void schedule(void)
+{
+	const unsigned long flags = local_int_save();
+	struct thread *next = scheduler_next_thread();
+
+	printf("current thread %p\n", thread_current());
+	printf("next thread %p\n", next);
+	if (next)
+		thread_switch_to(next);
+	local_int_restore(flags);
+}
+
 void scheduler_setup(void)
 {
 	rwlock_init(&queues_lock);
 	list_init(&queues);
+	spin_lock_init(&print_lock);
 	scheduler_queue_setup(&global_queue);
 }
 

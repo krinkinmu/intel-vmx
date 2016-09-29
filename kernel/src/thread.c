@@ -52,6 +52,7 @@ void threads_cpu_setup(void)
 	__asm__ volatile ("movq %%rsp, %0" : "=rm"(rsp));
 	thread->stack_addr = rsp & ~((uint64_t)PAGE_SIZE - 1);
 	thread->stack_order = 0;
+	thread_set_state(thread, THREAD_ACTIVE);
 	current = thread;
 }
 

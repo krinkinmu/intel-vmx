@@ -3,9 +3,10 @@
 
 struct thread;
 
-struct thread *scheduler_next_thread(void);
 void scheduler_activate_thread(struct thread *thread);
 void scheduler_block_thread(void);
+
+void schedule(void);
 
 void scheduler_setup(void);
 void scheduler_cpu_setup(void);
