@@ -3,6 +3,7 @@
 #include <thread.h>
 #include <percpu.h>
 #include <debug.h>
+#include <apic.h>
 #include <time.h>
 #include <list.h>
 #include <cpu.h>
@@ -13,6 +14,7 @@ struct scheduler_queue {
 	struct list_head ll;
 	struct spinlock lock;
 	struct list_head threads;
+	int cpu_id;
 };
 
 static __percpu struct scheduler_queue cpu_queue;
@@ -29,6 +31,7 @@ static void scheduler_queue_setup(struct scheduler_queue *queue)
 
 	spin_lock_init(&queue->lock);
 	list_init(&queue->threads);
+	queue->cpu_id = local_apic_id();
 	list_add_tail(&queue->ll, &queues);
 	write_unlock_restore(&queues_lock, flags);
 }
@@ -68,6 +71,8 @@ static int scheduler_need_preemption(struct thread *thread)
 {
 	const unsigned long long time = current_time();
 
+	BUG_ON(time < thread->timestamp);
+
 	return thread == cpu_idle ||
 		(thread_get_state(thread) != THREAD_ACTIVE) ||
 		(time - thread->timestamp > SCHEDULER_SLICE);
@@ -90,7 +95,7 @@ static struct thread *__scheduler_next_thread(void)
 	struct list_head *ptr = head->next;
 
 	for (; ptr != head; ptr = ptr->next) {
-		if (head == &queues)
+		if (ptr == &queues)
 			continue;
 
 		struct scheduler_queue *queue = LIST_ENTRY(ptr,
@@ -100,6 +105,14 @@ static struct thread *__scheduler_next_thread(void)
 			break;
 	}	
 	read_unlock_restore(&queues_lock, flags);
+
+	if (next)
+		return next;
+
+	struct thread *current = thread_current();
+
+	if (thread_get_state(current) == THREAD_ACTIVE)
+		return 0;
 
 	return cpu_idle;
 }
@@ -154,8 +167,6 @@ void schedule(void)
 	const unsigned long flags = local_int_save();
 	struct thread *next = scheduler_next_thread();
 
-	printf("current thread %p\n", thread_current());
-	printf("next thread %p\n", next);
 	if (next)
 		thread_switch_to(next);
 	local_int_restore(flags);
@@ -174,11 +185,12 @@ static void scheduler_cpu_idle(void *unused)
 	(void) unused;
 
 	while (1)
-		cpu_relax();
+		schedule();
 }
 
 void scheduler_cpu_setup(void)
 {
 	BUG_ON(!(cpu_idle = thread_create(&scheduler_cpu_idle, 0)));
+	thread_set_state(cpu_idle, THREAD_ACTIVE);
 	scheduler_queue_setup(&cpu_queue);
 }
