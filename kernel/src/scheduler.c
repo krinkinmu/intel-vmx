@@ -3,6 +3,7 @@
 #include <thread.h>
 #include <percpu.h>
 #include <debug.h>
+#include <alloc.h>
 #include <apic.h>
 #include <time.h>
 #include <list.h>
@@ -17,23 +18,17 @@ struct scheduler_queue {
 	int cpu_id;
 };
 
-static __percpu struct scheduler_queue cpu_queue;
+static __percpu struct scheduler_queue *cpu_queue;
 static __percpu struct thread *cpu_idle;
-static struct scheduler_queue global_queue;
-static struct rwlock queues_lock;
-static struct list_head queues;
-static struct spinlock print_lock;
+static struct scheduler_queue *queue;
+static size_t queues;
 
 
-static void scheduler_queue_setup(struct scheduler_queue *queue)
+static void scheduler_queue_setup(struct scheduler_queue *queue, int cpu_id)
 {
-	const unsigned long flags = write_lock_save(&queues_lock);
-
 	spin_lock_init(&queue->lock);
 	list_init(&queue->threads);
-	queue->cpu_id = local_apic_id();
-	list_add_tail(&queue->ll, &queues);
-	write_unlock_restore(&queues_lock, flags);
+	queue->cpu_id = cpu_id;
 }
 
 static struct thread *__scheduler_queue_next(struct scheduler_queue *queue)
@@ -80,35 +75,22 @@ static int scheduler_need_preemption(struct thread *thread)
 
 static struct thread *__scheduler_next_thread(void)
 {
-	struct thread *next = scheduler_queue_next(&cpu_queue);
+	struct thread *next = scheduler_queue_next(cpu_queue);
 
 	if (next)
 		return next;
 
-	next = scheduler_queue_next(&global_queue);
-	if (next)
-		return next;
+	const size_t this_cpu_pos = cpu_queue - queue;
+	size_t i = this_cpu_pos + 1 != queues ? this_cpu_pos + 1 : 0;
 
-	/* TODO: think about avoiding this lock, it's really annoying */
-	const unsigned long flags = read_lock_save(&queues_lock);
-	struct list_head *head = &cpu_queue.ll;
-	struct list_head *ptr = head->next;
+	while (i != this_cpu_pos) {
+		if ((next = scheduler_queue_next(&queue[i])))
+			return next;
 
-	for (; ptr != head; ptr = ptr->next) {
-		if (ptr == &queues)
-			continue;
-
-		struct scheduler_queue *queue = LIST_ENTRY(ptr,
-					struct scheduler_queue, ll);
-
-		if ((next = scheduler_queue_next(queue)))
-			break;
-	}	
-	read_unlock_restore(&queues_lock, flags);
-
-	if (next)
-		return next;
-
+		if (++i == queues)
+			i = 0;
+	}
+	
 	struct thread *current = thread_current();
 
 	if (thread_get_state(current) == THREAD_ACTIVE)
@@ -127,10 +109,10 @@ static void scheduler_preempt_thread(struct thread *prev)
 		return;
 	}
 
-	const unsigned long flags = spin_lock_save(&cpu_queue.lock);
+	const unsigned long flags = spin_lock_save(&cpu_queue->lock);
 
-	list_add_tail(&prev->ll, &cpu_queue.threads);
-	spin_unlock_restore(&cpu_queue.lock, flags);
+	list_add_tail(&prev->ll, &cpu_queue->threads);
+	spin_unlock_restore(&cpu_queue->lock, flags);
 }
 
 static struct thread *scheduler_next_thread(void)
@@ -152,7 +134,7 @@ static struct thread *scheduler_next_thread(void)
 void scheduler_activate_thread(struct thread *thread)
 {
 	thread_set_state(thread, THREAD_ACTIVE);
-	scheduler_queue_insert(&cpu_queue, thread);
+	scheduler_queue_insert(cpu_queue, thread);
 }
 
 void scheduler_block_thread(void)
@@ -174,10 +156,12 @@ void schedule(void)
 
 void scheduler_setup(void)
 {
-	rwlock_init(&queues_lock);
-	list_init(&queues);
-	spin_lock_init(&print_lock);
-	scheduler_queue_setup(&global_queue);
+	queues = local_apics;
+	queue = (struct scheduler_queue *)mem_alloc(queues * sizeof(*queue));
+	BUG_ON(!queue);
+
+	for (size_t i = 0; i != queues; ++i)
+		scheduler_queue_setup(queue + i, local_apic_ids[i]);
 }
 
 static void scheduler_cpu_idle(void *unused)
@@ -190,7 +174,14 @@ static void scheduler_cpu_idle(void *unused)
 
 void scheduler_cpu_setup(void)
 {
+	const int this_cpu_id = local_apic_id();
+
 	BUG_ON(!(cpu_idle = thread_create(&scheduler_cpu_idle, 0)));
 	thread_set_state(cpu_idle, THREAD_ACTIVE);
-	scheduler_queue_setup(&cpu_queue);
+
+	for (size_t i = 0; i != queues; ++i) {
+		if (queue[i].cpu_id != this_cpu_id)
+			continue;
+		cpu_queue = &queue[i];
+	}
 }
