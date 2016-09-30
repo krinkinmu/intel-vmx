@@ -31,6 +31,7 @@ struct thread *thread_create(thread_fptr_t fptr, void *arg);
 void thread_destroy(struct thread *thread);
 
 void thread_activate(struct thread *thread);
+void thread_block(void);
 void thread_set_state(struct thread *thread, int state);
 int thread_get_state(struct thread *thread);
 

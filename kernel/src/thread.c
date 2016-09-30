@@ -5,6 +5,7 @@
 #include <percpu.h>
 #include <debug.h>
 #include <alloc.h>
+#include <time.h>
 #include <cpu.h>
 
 struct thread_switch_frame {
@@ -52,6 +53,7 @@ void threads_cpu_setup(void)
 	__asm__ volatile ("movq %%rsp, %0" : "=rm"(rsp));
 	thread->stack_addr = rsp & ~((uint64_t)PAGE_SIZE - 1);
 	thread->stack_order = 0;
+	thread->timestamp = current_time();
 	thread_set_state(thread, THREAD_ACTIVE);
 	current = thread;
 }
@@ -118,6 +120,11 @@ struct thread *thread_current(void)
 void thread_activate(struct thread *thread)
 {
 	scheduler_activate_thread(thread);
+}
+
+void thread_block(void)
+{
+	scheduler_block_thread();
 }
 
 void thread_set_state(struct thread *thread, int state)
