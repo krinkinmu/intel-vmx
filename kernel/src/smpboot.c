@@ -38,8 +38,8 @@ static void ap_boot(void)
 	time_cpu_setup();
 	local_int_enable();
 	//vmx_setup();
-	while (1)
-		cpu_relax();
+
+	while (1);
 }
 
 static void tr_data_setup(struct tr_data *data)
