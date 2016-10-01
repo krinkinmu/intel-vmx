@@ -3,7 +3,13 @@
 
 #include <stdint.h>
 
+#define CR4_OSFXSR	(1ul << 9)
+#define CR4_OSXMMEXCPT	(1ul << 10)
 #define CR4_VMXE	(1ul << 13)
+#define CR4_OSXSAVE	(1ul << 18)
+#define CR0_MP		(1ul << 1)
+#define CR0_EM		(1ul << 2)
+#define CR0_TS		(1ul << 3)
 #define RFLAGS_CF	(1ul << 0)
 #define RFLAGS_ZF	(1ul << 6)
 #define RFLAGS_IF	(1ul << 9)

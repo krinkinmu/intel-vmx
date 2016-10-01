@@ -7,6 +7,7 @@
 #include <alloc.h>
 #include <time.h>
 #include <cpu.h>
+#include <fpu.h>
 
 struct thread_switch_frame {
 	uint64_t r15;
@@ -55,6 +56,10 @@ void threads_cpu_setup(void)
 	thread->stack_order = 0;
 	thread->timestamp = current_time();
 	thread_set_state(thread, THREAD_ACTIVE);
+
+	BUG_ON(!(thread->fpu_state = mem_alloc(fpu_state_size())));
+	fpu_state_setup(thread->fpu_state);
+
 	current = thread;
 }
 
@@ -82,6 +87,14 @@ struct thread *__thread_create(thread_fptr_t fptr, void *arg, int stack_order)
 		return 0;
 	}
 
+	thread->fpu_state = mem_alloc(fpu_state_size());
+	if (!thread->fpu_state) {
+		page_free(stack_addr, stack_order);
+		thread_free(thread);
+		return 0;
+	}
+	fpu_state_setup(thread->fpu_state);
+
 	struct thread_switch_frame *frame;
 
 	thread->stack_addr = stack_addr;
@@ -108,6 +121,7 @@ struct thread *thread_create(thread_fptr_t fptr, void *arg)
 
 void thread_destroy(struct thread *thread)
 {
+	mem_free(thread->fpu_state);
 	page_free(thread->stack_addr, PA_ANY);
 	thread_free(thread);
 }
@@ -144,9 +158,11 @@ void thread_switch_to(struct thread *next)
 	const unsigned long flags = local_int_save();
 	struct thread *prev = thread_current();
 
+	fpu_state_save(prev->fpu_state);
 	current = next;
 	__thread_switch(&prev->stack_ptr, next->stack_ptr);
 	current = prev;
+	fpu_state_restore(next->fpu_state);
 
 	local_int_restore(flags);	
 }

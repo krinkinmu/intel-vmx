@@ -17,6 +17,7 @@ struct thread {
 	unsigned long long timestamp;
 	uintptr_t stack_ptr;
 	uintptr_t stack_addr;
+	void *fpu_state;
 	int stack_order;
 	atomic_int state;
 };

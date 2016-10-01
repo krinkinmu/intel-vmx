@@ -12,6 +12,7 @@
 #include <percpu.h>
 #include <thread.h>
 #include <scheduler.h>
+#include <fpu.h>
 #include <vmx.h>
 
 
@@ -59,8 +60,9 @@ void main(const struct mboot_info *info)
 	smp_early_setup();
 
 	percpu_cpu_setup();
-	threads_cpu_setup();
+	fpu_cpu_setup();
 	gdt_cpu_setup();
+	threads_cpu_setup();
 	scheduler_cpu_setup();
 	ints_cpu_setup();
 	time_cpu_setup();
