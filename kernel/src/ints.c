@@ -1,3 +1,6 @@
+#include <backtrace.h>
+#include <memory.h>
+#include <thread.h>
 #include <stdint.h>
 #include <debug.h>
 #include <apic.h>
@@ -41,8 +44,22 @@ static void exception_handle(struct frame *frame)
 		exc_handler[frame->num](frame);
 		return;
 	}
-	BUG("Unhandled exception %d err %lu",
-				(int)frame->num, (unsigned long)frame->err);
+
+	struct thread *thread = thread_current();
+
+	if (thread) {
+		const int order = thread->stack_order + PAGE_SHIFT;
+		const uintptr_t size = 1ul << order;
+		const uintptr_t begin = thread->stack_addr;
+		const uintptr_t end = begin + size;
+
+		printf("Backtrace Begin:\n");
+		__backtrace(frame->rbp, begin, end);
+		printf("Backtrace End.\n");
+	}
+	BUG("Unhandled exception %d err %lu, at 0x%lx",
+				(int)frame->num, (unsigned long)frame->err,
+				(unsigned long)frame->rip);
 }
 
 static void ack_irq(int irq)
