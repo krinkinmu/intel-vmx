@@ -13,8 +13,22 @@
 #define SSE_MASK	(1ull << 1)
 #define AVX_MASK	(1ull << 2)
 #define EXT_MASK	(X87_FPU_MASK | SSE_MASK | AVX_MASK)
-#define XSAVE_MASK(x)	(((unsigned long long)(x) & EXT_MASK) \
-				| (X87_FPU_MASK | SSE_MASK))
+#define XSAVE_MASK(x)	(((unsigned long long)(x) & EXT_MASK) | X87_FPU_MASK)
+
+struct x87_area {
+	uint8_t	state[512];
+} __attribute__((packed));
+
+struct xsave_hdr {
+	uint64_t xsate_bv;
+	uint64_t xcomp_bv;
+	uint64_t reserved[6];
+} __attribute__((packed));
+
+struct xsave_area {
+	struct x87_area x87_state;
+	struct xsave_hdr xsave_hdr;
+} __attribute__((packed));
 
 static unsigned long long xcr0_features;
 static int state_size;
@@ -32,33 +46,26 @@ void fpu_state_setup(void *state)
 
 void fpu_state_save(void *state)
 {
-	//const unsigned long edx = xcr0_features >> 32;
-	//const unsigned long eax = xcr0_features & 0xfffffffful;
+	const unsigned long edx = xcr0_features >> 32;
+	const unsigned long eax = xcr0_features & 0xfffffffful;
+	struct xsave_area *xsave = state;
 
-	// causes GP for unknown reason in qemu, according to
-	// docs GP may be generated only because state is not
-	// 64 byte aligned, but it's not the case, so it must
-	// be some other error.
-
-	(void) state;
- 
-	//__asm__ volatile ("xsave %0"
-	//			:
-	//			: "m"(state), "d"(edx), "a"(eax)
-	//			: "memory");
+	__asm__ volatile ("xsave %0"
+				:
+				: "m"(*xsave), "d"(edx), "a"(eax)
+				: "memory");
 }
 
 void fpu_state_restore(const void *state)
 {
-	//const unsigned long edx = xcr0_features >> 32;
-	//const unsigned long eax = xcr0_features & 0xfffffffful;
+	const unsigned long edx = xcr0_features >> 32;
+	const unsigned long eax = xcr0_features & 0xfffffffful;
+	const struct xsave_area *xsave = state;
 
-	(void) state;
-
-	//__asm__ volatile ("xrstor %0"
-	//			:
-	//			: "m"(state), "d"(edx), "a"(eax)
-	//			: "memory");
+	__asm__ volatile ("xrstor %0"
+				:
+				: "m"(*xsave), "d"(edx), "a"(eax)
+				: "memory");
 }
 
 static void __xcr0_write(unsigned long long features)
