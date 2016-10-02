@@ -106,7 +106,7 @@ static struct tr_data *smp_tr_data_find(char *begin, char *end)
 	return 0;
 }
 
-void smp_early_setup(void)
+void smp_setup(void)
 {
 	extern char tr_begin[];
 	extern char tr_end[];
@@ -146,9 +146,5 @@ void smp_early_setup(void)
 		startup_ap(apic_id, (unsigned long)trampoline);
 	}
 	page_free((uintptr_t)trampoline, order);
-}
-
-void smp_setup(void)
-{
 	ap_continue = 1;
 }
