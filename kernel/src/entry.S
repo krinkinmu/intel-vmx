@@ -31,41 +31,41 @@ __thread_switch:
 
 	ret
 
-#define FOR_EACH_VECTOR(ISR, EXC) \
-	ISR(0) \
-	ISR(1) \
-	ISR(2) \
-	ISR(3) \
-	ISR(4) \
-	ISR(5) \
-	ISR(6) \
-	ISR(7) \
-	EXC(8) \
-	ISR(9) \
-	EXC(10) \
-	EXC(11) \
-	EXC(12) \
-	EXC(13) \
-	EXC(14) \
-	ISR(15) \
-	ISR(16) \
-	EXC(17) \
-	ISR(18) \
-	ISR(19) \
-	ISR(20) \
-	ISR(21) \
-	ISR(22) \
-	ISR(23) \
-	ISR(24) \
-	ISR(25) \
-	ISR(26) \
-	ISR(27) \
-	ISR(28) \
-	ISR(29) \
-	ISR(30) \
-	ISR(31) \
-	ISR(32) \
-	ISR(33)
+#define FOR_EACH_VECTOR(NOERR, ERR) \
+	NOERR(0) \
+	NOERR(1) \
+	NOERR(2) \
+	NOERR(3) \
+	NOERR(4) \
+	NOERR(5) \
+	NOERR(6) \
+	NOERR(7) \
+	ERR(8) \
+	NOERR(9) \
+	ERR(10) \
+	ERR(11) \
+	ERR(12) \
+	ERR(13) \
+	ERR(14) \
+	NOERR(15) \
+	NOERR(16) \
+	ERR(17) \
+	NOERR(18) \
+	NOERR(19) \
+	NOERR(20) \
+	NOERR(21) \
+	NOERR(22) \
+	NOERR(23) \
+	NOERR(24) \
+	NOERR(25) \
+	NOERR(26) \
+	NOERR(27) \
+	NOERR(28) \
+	NOERR(29) \
+	NOERR(30) \
+	NOERR(31) \
+	NOERR(32) \
+	NOERR(33)
 
 #define NAME(num) entry ## num
 
@@ -117,23 +117,23 @@ __entry:
 	addq $136, %rsp
 	iretq
 
-#define EXC(num) \
+#define ERR(num) \
 	.align 16; \
 NAME(num): \
 	pushq $num; \
 	jmp __entry;
 
-#define ISR(num) \
+#define NOERR(num) \
 	.align 16; \
 NAME(num): \
 	pushq $0; \
 	pushq $num; \
 	jmp __entry;
 
-FOR_EACH_VECTOR(ISR, EXC)
+FOR_EACH_VECTOR(NOERR, ERR)
 
-#undef ISR
-#undef EXC
+#undef ERR
+#undef NOERR
 
 vmcs_return:
 	pushq %rax
