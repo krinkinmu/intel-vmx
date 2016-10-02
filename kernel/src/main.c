@@ -11,6 +11,7 @@
 #include <alloc.h>
 #include <percpu.h>
 #include <thread.h>
+#include <paging.h>
 #include <scheduler.h>
 #include <fpu.h>
 #include <vmx.h>
@@ -47,17 +48,20 @@ void main(const struct mboot_info *info)
 {
 	gdb_hang();
 	uart8250_setup();
+	ints_early_setup();
+	acpi_early_setup();
+
 	balloc_setup(info);
 	page_alloc_setup();
 	mem_alloc_setup();
+	paging_early_setup();
 	threads_setup();
-	acpi_early_setup();
 
+	paging_setup();
 	apic_setup();
-	ints_setup();
 	time_setup();
 	scheduler_setup();
-	smp_early_setup();
+	smp_setup();
 
 	percpu_cpu_setup();
 	fpu_cpu_setup();
@@ -68,7 +72,6 @@ void main(const struct mboot_info *info)
 	time_cpu_setup();
 	local_int_enable();
 
-	smp_setup();
 	//vmx_setup();
 
 	struct thread *thread0 = thread_create(&thread_function, (void *)0);
