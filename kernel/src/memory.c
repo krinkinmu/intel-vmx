@@ -25,7 +25,8 @@ struct page {
 static const struct memory_range memory_range[] = {
 	{0, LOW_MEMORY, PA_LOW},
 	{LOW_MEMORY, NORMAL_MEMORY, PA_NORMAL},
-	{NORMAL_MEMORY, HIGH_MEMORY, PA_HIGH}
+	{NORMAL_MEMORY, HIGH_MEMORY, PA_HIGH},
+	{HIGH_MEMORY, UNMAPPED_MEMORY, PA_UNMAPPED}
 };
 
 static inline int page_order(const struct page *page)
@@ -414,4 +415,23 @@ void __page_free(struct page *page, int order)
 	struct page_alloc_zone *zone = page_zone(page);
 
 	page_free_zone(zone, page, order);
+}
+
+uintptr_t phys_mem_limit(void)
+{
+	uintptr_t limit = 0;
+
+	struct list_head *head = &page_alloc_zones;
+	struct list_head *ptr;
+
+	for (ptr = head->next; ptr != head; ptr = ptr->next) {
+		struct page_alloc_zone *zone = CONTAINER_OF(ptr,
+					struct page_alloc_zone, ll);
+		const uintptr_t end = zone->end << PAGE_SHIFT;
+
+		if (end > limit)
+			limit = end;
+	}
+
+	return limit;
 }
