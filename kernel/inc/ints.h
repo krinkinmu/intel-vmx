@@ -94,7 +94,7 @@ void register_irq(int irq, const struct irq_info *info);
 void activate_irq(int irq);
 void deactivate_irq(int irq);
 
-void ints_setup(void);
+void ints_early_setup(void);
 void ints_cpu_setup(void);
 
 #endif /*__INTRRUPT_H__*/

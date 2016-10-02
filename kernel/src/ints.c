@@ -119,21 +119,6 @@ static void idt_desc_set(struct idt_desc *desc, unsigned sel, uintptr_t offs,
 	desc->reserved = 0;
 }
 
-void ints_setup(void)
-{
-	for (int i = IDT_EXC_BEGIN; i != IDT_EXC_END; ++i) {
-		const uintptr_t handler = (uintptr_t)int_raw_handler_table[i];
-
-		idt_desc_set(&idt[i], 0x08, handler, IDT_EXCEPTION);
-	}
-
-	for (int i = IDT_IRQ_BEGIN; i != IDT_IRQ_END; ++i) {
-		const uintptr_t handler = (uintptr_t)int_raw_handler_table[i];
-
-		idt_desc_set(&idt[i], 0x08, handler, IDT_IRQ);
-	}
-}
-
 static void idt_setup(void)
 {
 	const struct desc_ptr ptr = {
@@ -149,6 +134,22 @@ static void local_apic_setup(void)
 	const unsigned long spurious = local_apic_read(APIC_SPURIOUS);
 
 	local_apic_write(APIC_SPURIOUS, spurious | APIC_ENABLE);
+}
+
+void ints_early_setup(void)
+{
+	for (int i = IDT_EXC_BEGIN; i != IDT_EXC_END; ++i) {
+		const uintptr_t handler = (uintptr_t)int_raw_handler_table[i];
+
+		idt_desc_set(&idt[i], KERNEL_CS, handler, IDT_EXCEPTION);
+	}
+
+	for (int i = IDT_IRQ_BEGIN; i != IDT_IRQ_END; ++i) {
+		const uintptr_t handler = (uintptr_t)int_raw_handler_table[i];
+
+		idt_desc_set(&idt[i], KERNEL_CS, handler, IDT_IRQ);
+	}
+	idt_setup();
 }
 
 void ints_cpu_setup(void)
