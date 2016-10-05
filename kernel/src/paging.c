@@ -4,117 +4,114 @@
 #include <string.h>
 #include <debug.h>
 
-#define PTE_PRESENT	((uintptr_t)1 << 0)
-#define PTE_WRITE	((uintptr_t)1 << 1)
-#define PTE_USER	((uintptr_t)1 << 2)
-#define PTE_LARGE	((uintptr_t)1 << 7)
+static int pml_shift(int level)
+{
+	static const int offs[] = {0, 12, 21, 30, 39};
 
-#define PTE_PHYS_MASK	((uintptr_t)0xffffffffff000)
-#define PTE_FLAGS_MASK	(~PTE_PHYS_MASK)
-
-typedef uint64_t	pte_t;
+	BUG_ON(level < 1 || level > PT_LEVELS - 1);
+	return offs[level];
+}
 
 static int pml_offs(uintptr_t addr, int level)
 {
-	static const int offs[] = {0, 12, 21, 30, 39};
 	static const int mask[] = {0, 0xfff, 0x1ff, 0x1ff, 0x1ff};
 
-	BUG_ON(level < 1 || level > 4);
-	return (addr >> offs[level]) & mask[level];
+	BUG_ON(level < 1 || level > PT_LEVELS - 1);
+	return (addr >> pml_shift(level)) & mask[level];
 }
 
 static uintptr_t pml_size(int level)
 {
-	static const int offs[] = {0, 12, 21, 30, 39};
-
-	BUG_ON(level < 1 || level > 4);
-	return (uintptr_t)1 << offs[level];
+	BUG_ON(level < 1 || level > PT_LEVELS - 1);
+	return (uintptr_t)1 << pml_shift(level);
 }
 
-static uintptr_t pte_phys(pte_t pte)
+void pt_iter_setup(pte_t *pml4, struct pt_iter *iter, uintptr_t addr)
 {
-	return pte & PTE_PHYS_MASK;
-}
+	iter->lvl = PT_LEVELS - 1;
+	iter->table[iter->lvl] = pml4;
+	iter->index[iter->lvl] = pml_offs(addr, iter->lvl);
 
-static uintptr_t page_table_alloc(void)
-{
-	uintptr_t addr = page_alloc(0, PA_NORMAL);
+	for (int i = PT_LEVELS - 1; i != 1; --i) {
+		const int index = iter->index[i];
+		const pte_t pte = iter->table[i][index];
 
-	if (!addr)
-		return 0;
+		if (!(pte & PTE_PRESENT))
+			break;
 
-	memset((void *)addr, 0, PAGE_SIZE);
-	return addr;
-}
-
-static void __pml_map(pte_t *pml, uintptr_t begin, uintptr_t end,
-			uintptr_t phys, uintptr_t flags, int level)
-{
-	const uintptr_t size = pml_size(level);
-	const uintptr_t mask = size - 1;
-	const uintptr_t large = (level == 3 || level == 2) ? PTE_LARGE : 0;
-	const int start = pml_offs(begin, level);
-	const int finish = pml_offs(end - 1, level);
-
-	for (int i = start; i <= finish; ++i) {
-		const uintptr_t entry_end = (begin + size) & ~mask;
-		const uintptr_t tomap = entry_end < end
-					? entry_end - begin
-					: end - begin;
-
-		if (!(pml[i] & PTE_PRESENT)) {
-			if (tomap == size) {
-				pml[i] = phys | flags | large;
-				begin += tomap;
-				phys += tomap;
-				continue;
-			}
-
-			BUG_ON(level == 1);
-
-			pml[i] = page_table_alloc() | flags;
-		}
-
-		pte_t *next = (pte_t *)pte_phys(pml[i]);
-
-		BUG_ON(!next);
-		if (level != 1 && (level == 4 || !(pml[i] & PTE_LARGE)))
-			__pml_map(next, begin, begin + tomap, phys,
-						flags, level - 1);
-		begin += tomap;
-		phys += tomap;
+		iter->table[--iter->lvl] = (pte_t *)(pte & PTE_PHYS_MASK);
+		iter->index[iter->lvl] = pml_offs(addr, iter->lvl);
 	}
 }
 
-static void pml_map(pte_t *pml4, uintptr_t begin, uintptr_t end,
-			uintptr_t phys, uintptr_t flags)
+void pt_iter_next_slot(struct pt_iter *iter)
 {
-	BUG_ON(begin & (PAGE_SIZE - 1));
-	BUG_ON(end & (PAGE_SIZE - 1));
-	BUG_ON(phys & (PAGE_SIZE - 1));
+	for (int i = iter->lvl; i != PT_LEVELS; ++i) {
+		if (++iter->index[i] != PT_ENTRIES)
+			break;
+		++iter->lvl;
+	}
 
-	__pml_map(pml4, begin, end, phys, flags, 4);
+	if (iter->lvl == PT_LEVELS)
+		iter->index[--iter->lvl] = 0;
+
+	for (int i = iter->lvl; i != 1; --i) {
+		const int index = iter->index[i];
+		const pte_t pte = iter->table[i][index];
+
+		if (!(pte & PTE_PRESENT))
+			break;
+
+		iter->table[--iter->lvl] = (pte_t *)(pte & PTE_PHYS_MASK);
+		iter->index[iter->lvl] = 0;
+	}
+}
+
+void pt_iter_prev_slot(struct pt_iter *iter)
+{
+	for (int i = iter->lvl; i != PT_LEVELS; ++i) {
+		if (--iter->index[i] != -1)
+			break;
+		++iter->lvl;
+	}
+
+	if (iter->lvl == PT_LEVELS)
+		iter->index[--iter->lvl] = PT_ENTRIES - 1;
+
+	for (int i = iter->lvl; i != 1; --i) {
+		const int index = iter->index[i];
+		const pte_t pte = iter->table[i][index];
+
+		if (!(pte & PTE_PRESENT))
+			break;
+
+		iter->table[--iter->lvl] = (pte_t *)(pte & PTE_PHYS_MASK);
+		iter->index[iter->lvl] = PT_ENTRIES - 1;
+	}
+}
+
+uintptr_t pt_iter_slot_size(const struct pt_iter *iter)
+{
+	return pml_size(iter->lvl);
+}
+
+uintptr_t pt_iter_slot_addr(const struct pt_iter *iter)
+{
+	uintptr_t addr = 0;
+
+	for (int i = iter->lvl; i != PT_LEVELS; ++i)
+		addr |= (uintptr_t)iter->index[i] << pml_shift(i);
+
+	if (addr & ((uintptr_t)1 << 47))
+		addr |= 0xffff000000000000ull;
+
+	return addr;
 }
 
 void paging_early_setup(void)
 {
-	uintptr_t mem_limit = phys_mem_limit();
-
-	if (mem_limit > HIGH_MEMORY)
-		mem_limit = HIGH_MEMORY;
-
-	pte_t *old_pml4 = (pte_t *)read_cr3();
-	pte_t *new_pml4 = (pte_t *)page_table_alloc();
-
-	BUG_ON(!new_pml4);
-	pml_map(new_pml4, 0, mem_limit, 0,
-				PTE_PRESENT | PTE_WRITE);
-	write_cr3((uintptr_t)new_pml4);
-	(void) old_pml4;
 }
 
 void paging_setup(void)
 {
-	// TODO: refine page table, unmap regions that don't exists, unmap zero page,
-	// forbid execution from data pages, forbid write to code/rodata pages.
 }
