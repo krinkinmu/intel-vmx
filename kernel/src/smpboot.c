@@ -9,6 +9,7 @@
 #include <percpu.h>
 #include <thread.h>
 #include <scheduler.h>
+#include <paging.h>
 #include <fpu.h>
 #include <vmx.h>
 
@@ -31,9 +32,10 @@ static void ap_boot(void)
 	while (!ap_continue)
 		cpu_relax();
 
-	percpu_cpu_setup();
+	paging_cpu_setup();
 	fpu_cpu_setup();
 	gdt_cpu_setup();
+	percpu_cpu_setup();
 	threads_cpu_setup();
 	scheduler_cpu_setup();
 	ints_cpu_setup();

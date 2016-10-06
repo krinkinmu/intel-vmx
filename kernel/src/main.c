@@ -54,7 +54,6 @@ void main(const struct mboot_info *info)
 	balloc_setup(info);
 	page_alloc_setup();
 	mem_alloc_setup();
-	paging_early_setup();
 	threads_setup();
 
 	paging_setup();
@@ -63,9 +62,10 @@ void main(const struct mboot_info *info)
 	scheduler_setup();
 	smp_setup();
 
-	percpu_cpu_setup();
+	paging_cpu_setup();
 	fpu_cpu_setup();
 	gdt_cpu_setup();
+	percpu_cpu_setup();
 	threads_cpu_setup();
 	scheduler_cpu_setup();
 	ints_cpu_setup();
