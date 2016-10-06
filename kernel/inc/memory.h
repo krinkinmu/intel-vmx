@@ -2,6 +2,7 @@
 #define __MEMORY_H__
 
 #include <stdint.h>
+#include <list.h>
 
 #define PAGE_SHIFT	12
 #define PAGE_SIZE	(1 << PAGE_SHIFT)
@@ -21,7 +22,10 @@
 
 #define KERNEL_CS	0x08
 
-struct page;
+struct page {
+	struct list_head ll;
+	unsigned long flags;
+};
 
 uintptr_t page_addr(const struct page *page);
 

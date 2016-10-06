@@ -16,12 +16,6 @@ struct memory_range {
 	unsigned long flags;
 };
 
-struct page {
-	struct list_head ll;
-	unsigned long flags;
-};
-
-
 static const struct memory_range memory_range[] = {
 	{0, LOW_MEMORY, PA_LOW},
 	{LOW_MEMORY, NORMAL_MEMORY, PA_NORMAL},
