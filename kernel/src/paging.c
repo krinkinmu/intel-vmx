@@ -36,7 +36,7 @@ void pt_iter_setup(pte_t *pml4, struct pt_iter *iter, uintptr_t addr)
 		const int index = iter->index[i];
 		const pte_t pte = iter->table[i][index];
 
-		if (!(pte & PTE_PRESENT))
+		if (!(pte & PTE_PRESENT) || (pte & PTE_LARGE))
 			break;
 
 		iter->table[--iter->lvl] = (pte_t *)(pte & PTE_PHYS_MASK);
@@ -59,7 +59,7 @@ void pt_iter_next_slot(struct pt_iter *iter)
 		const int index = iter->index[i];
 		const pte_t pte = iter->table[i][index];
 
-		if (!(pte & PTE_PRESENT))
+		if (!(pte & PTE_PRESENT) || (pte & PTE_LARGE))
 			break;
 
 		iter->table[--iter->lvl] = (pte_t *)(pte & PTE_PHYS_MASK);
@@ -82,7 +82,7 @@ void pt_iter_prev_slot(struct pt_iter *iter)
 		const int index = iter->index[i];
 		const pte_t pte = iter->table[i][index];
 
-		if (!(pte & PTE_PRESENT))
+		if (!(pte & PTE_PRESENT) || (pte & PTE_LARGE))
 			break;
 
 		iter->table[--iter->lvl] = (pte_t *)(pte & PTE_PHYS_MASK);

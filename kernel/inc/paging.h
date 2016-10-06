@@ -3,12 +3,12 @@
 
 #include <stdint.h>
 
-#define PTE_PRESENT	((uintptr_t)1 << 0)
-#define PTE_WRITE	((uintptr_t)1 << 1)
-#define PTE_USER	((uintptr_t)1 << 2)
-#define PTE_LARGE	((uintptr_t)1 << 7)
+#define PTE_PRESENT	((pte_t)1 << 0)
+#define PTE_WRITE	((pte_t)1 << 1)
+#define PTE_USER	((pte_t)1 << 2)
+#define PTE_LARGE	((pte_t)1 << 7)
 
-#define PTE_PHYS_MASK	((uintptr_t)0xffffffffff000)
+#define PTE_PHYS_MASK	((pte_t)0xffffffffff000)
 #define PTE_FLAGS_MASK	(~PTE_PHYS_MASK)
 
 #define PT_ENTRIES	512
