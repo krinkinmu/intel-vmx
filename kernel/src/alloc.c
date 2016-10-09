@@ -289,6 +289,7 @@ struct mem_entry {
 	struct rb_node rb;
 	void *ptr;
 	struct mem_cache *cache;
+	size_t size;
 	int order;
 };
 
@@ -391,7 +392,7 @@ void mem_alloc_setup(void)
 					mem_pool_size[0]);
 }
 
-void *mem_alloc(size_t size)
+static struct mem_entry *__mem_alloc(size_t size)
 {
 	struct mem_entry *entry = mem_entry_create();
 
@@ -412,13 +413,67 @@ void *mem_alloc(size_t size)
 
 		return 0;
 	}
+	entry->size = size;
+
+	return entry;
+}
+
+void *mem_alloc(size_t size)
+{
+	struct mem_entry *entry = __mem_alloc(size);
+
+	if (!entry)
+		return 0;
 
 	const unsigned long flags = spin_lock_save(&mem_entries_lock);
-	
+
 	__mem_entry_insert(entry);
 	spin_unlock_restore(&mem_entries_lock, flags);
 
 	return entry->ptr;
+}
+
+static void __mem_free(struct mem_entry *entry)
+{
+	if (entry->cache)
+		mem_cache_free(entry->cache, entry->ptr);
+	else
+		page_free((uintptr_t)entry->ptr, entry->order);
+	mem_entry_destroy(entry);
+}
+
+void *mem_realloc(void *ptr, size_t size)
+{
+	if (!ptr)
+		return mem_alloc(size);
+
+	unsigned long flags = spin_lock_save(&mem_entries_lock);
+	struct mem_entry *old = __mem_entry_lookup(ptr);
+
+	BUG_ON(!old);
+	spin_unlock_restore(&mem_entries_lock, flags);
+
+	if (old->cache) {
+		if (size <= old->cache->obj_size)
+			return ptr;
+	} else {
+		if (size <= ((size_t)1 << (old->order + PAGE_SHIFT)))
+			return ptr;
+	}
+
+	struct mem_entry *new = __mem_alloc(size);
+
+	if (!new)
+		return 0;
+
+	memcpy(new->ptr, old->ptr, old->size);
+	flags = spin_lock_save(&mem_entries_lock);
+	__mem_entry_remove(old);
+	__mem_entry_insert(new);
+	spin_unlock_restore(&mem_entries_lock, flags);
+	__mem_free(old);
+
+	return new->ptr;
 }
 
 void mem_free(void *ptr)
@@ -429,5 +484,5 @@ void mem_free(void *ptr)
 	BUG_ON(!entry);
 	__mem_entry_remove(entry);
 	spin_unlock_restore(&mem_entries_lock, flags);
-	mem_entry_destroy(entry);
+	__mem_free(entry);
 }
