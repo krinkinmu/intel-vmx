@@ -1,9 +1,7 @@
 #include <memory.h>
-#include <spinlock.h>
 #include <string.h>
 #include <balloc.h>
 #include <debug.h>
-#include <list.h>
 
 
 #define PAGE_ORDER_MASK	0xfful
@@ -22,6 +20,8 @@ static const struct memory_range memory_range[] = {
 	{NORMAL_MEMORY, HIGH_MEMORY, PA_HIGH},
 	{HIGH_MEMORY, UNMAPPED_MEMORY, PA_UNMAPPED}
 };
+
+struct list_head page_alloc_zones;
 
 static inline int page_order(const struct page *page)
 {
@@ -47,18 +47,6 @@ static inline void page_set_busy(struct page *page)
 {
 	page->flags &= ~PAGE_FREE_MASK;
 }
-
-struct page_alloc_zone {
-	struct spinlock lock;
-	struct list_head ll;
-	uintptr_t begin;
-	uintptr_t end;
-	unsigned long flags;
-	struct list_head order[MAX_ORDER + 1];
-	struct page pages[1];
-};
-
-static struct list_head page_alloc_zones;
 
 static void __page_alloc_zone_setup(uintptr_t zbegin, uintptr_t zend,
 			unsigned long flags)

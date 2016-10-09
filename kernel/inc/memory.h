@@ -1,6 +1,7 @@
 #ifndef __MEMORY_H__
 #define __MEMORY_H__
 
+#include <spinlock.h>
 #include <stdint.h>
 #include <list.h>
 
@@ -26,6 +27,18 @@ struct page {
 	struct list_head ll;
 	unsigned long flags;
 };
+
+struct page_alloc_zone {
+	struct spinlock lock;
+	struct list_head ll;
+	uintptr_t begin;
+	uintptr_t end;
+	unsigned long flags;
+	struct list_head order[MAX_ORDER + 1];
+	struct page pages[1];
+};
+
+extern struct list_head page_alloc_zones;
 
 uintptr_t page_addr(const struct page *page);
 
