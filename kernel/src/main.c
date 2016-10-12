@@ -44,10 +44,33 @@ static void thread_function(void *id)
 	}
 }
 
+static int int_less(const void *lptr, const void *rptr)
+{
+	const int l = *((const int *)lptr);
+	const int r = *((const int *)rptr);
+
+	if (l != r)
+		return l < r ? -1 : 1;
+	return 0;
+}
+
+static void test_sort(void)
+{
+	const int sorted[] = {-42, -42, -23, -7, -1, -1, 13, 23, 42, 42, 56, 77, 88};
+	int array[]        = {-1, 23, 42, -42, 56, 88, -23, 42, -42, -1, 77, 13, -7};
+
+	qsort(array, sizeof(array)/sizeof(array[0]), sizeof(array[0]), &int_less);
+	for (int i = 0; i != sizeof(array)/sizeof(array[0]); ++i) {
+		printf("%d\n", array[i]);
+		BUG_ON(array[i] != sorted[i]);
+	}
+}
+
 void main(const struct mboot_info *info)
 {
 	gdb_hang();
 	uart8250_setup();
+	test_sort();
 	ints_early_setup();
 	acpi_early_setup();
 
