@@ -112,3 +112,70 @@ char *itoa(int value, char *str, int base)
 {
 	return lltoa(value, str, base);
 }
+
+static inline size_t left_child(size_t pos)
+{
+	return (pos + 1) * 2 - 1;
+}
+
+static inline size_t right_child(size_t pos)
+{
+	return (pos + 1) * 2;
+}
+
+static inline void swap(char *l, char *r, size_t size)
+{
+	for (size_t i = 0; i != size; ++i) {
+		const char tmp = l[i];
+
+		l[i] = r[i];
+		r[i] = tmp;
+	}
+}
+
+static void sift_down(char *base, size_t count, size_t size,
+			int (*cmp)(const void *, const void *), size_t p)
+{
+	while (1) {
+		const size_t l = left_child(p);
+		const size_t r = right_child(p);
+		size_t m = p;
+
+		if (l < count && cmp(base + l * size, base + m * size) > 0)
+			m = l;
+
+		if (r < count && cmp(base + r * size, base + m * size) > 0)
+			m = r;
+
+		if (m == p)
+			return;
+
+		swap(base + p * size, base + m * size, size);
+		p = m;
+	}
+}
+
+static void pop_heap(char *base, size_t count, size_t size,
+			int (*cmp)(const void *, const void *))
+{
+	swap(base, base + (count - 1) * size, size);
+	sift_down(base, count - 1, size, cmp, 0);
+}
+
+static void make_heap(char *base, size_t count, size_t size,
+			int (*cmp)(const void *, const void *))
+{
+	if (count <= 1)
+		return;
+
+	for (size_t i = count / 2; i != 0; --i)
+		sift_down(base, count, size, cmp, i - 1);
+}
+
+void qsort(void *base, size_t count, size_t size,
+			int (*cmp)(const void *, const void *))
+{
+	make_heap(base, count, size, cmp);
+	while (count)
+		pop_heap(base, count--, size, cmp);
+}
