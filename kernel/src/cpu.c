@@ -3,6 +3,7 @@
 #include <percpu.h>
 #include <paging.h>
 #include <thread.h>
+#include <hazptr.h>
 #include <alloc.h>
 #include <debug.h>
 #include <apic.h>
@@ -100,6 +101,7 @@ void cpu_setup(void)
 	gdt_cpu_setup();
 	percpu_cpu_setup();
 	id_cpu_setup();
+	hp_cpu_setup();
 	threads_cpu_setup();
 	scheduler_cpu_setup();
 	ints_cpu_setup();
