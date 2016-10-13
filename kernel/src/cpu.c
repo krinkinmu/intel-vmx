@@ -106,4 +106,5 @@ void cpu_setup(void)
 	scheduler_cpu_setup();
 	ints_cpu_setup();
 	time_cpu_setup();
+	local_int_enable();
 }
