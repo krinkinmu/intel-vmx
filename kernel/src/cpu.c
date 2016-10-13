@@ -97,11 +97,11 @@ int cpu_count(void)
 void cpu_setup(void)
 {
 	paging_cpu_setup();
-	fpu_cpu_setup();
-	gdt_cpu_setup();
 	percpu_cpu_setup();
 	id_cpu_setup();
 	hp_cpu_setup();
+	fpu_cpu_setup();
+	gdt_cpu_setup();
 	threads_cpu_setup();
 	scheduler_cpu_setup();
 	ints_cpu_setup();
