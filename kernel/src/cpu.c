@@ -1,6 +1,13 @@
+#include <scheduler.h>
 #include <string.h>
+#include <percpu.h>
+#include <paging.h>
+#include <thread.h>
 #include <alloc.h>
 #include <debug.h>
+#include <apic.h>
+#include <time.h>
+#include <fpu.h>
 #include <cpu.h>
 
 
@@ -43,7 +50,7 @@ static void gdt_setup(struct gdt *gdt, struct tss *tss)
 	tss_segment_setup(tss);
 }
 
-void gdt_cpu_setup(void)
+static void gdt_cpu_setup(void)
 {
 	const size_t gdt_size = sizeof(struct gdt);
 	const size_t tss_size = sizeof(struct tss);
@@ -59,4 +66,42 @@ void gdt_cpu_setup(void)
 	gdt_setup(gdt, tss);
 	write_gdt(&ptr);
 	write_tr(KERNEL_TSS);
+}
+
+static __percpu int this_cpu_id;
+
+static void id_cpu_setup(void)
+{
+	const int apic_id = local_apic_id();
+
+	for (int i = 0; i != local_apics; ++i) {
+		if (apic_id == local_apic_ids[i]) {
+			this_cpu_id = i;
+			return;
+		}
+	}
+	BUG("Failed to find local apic id %d\n", apic_id);
+}
+
+int cpu_id(void)
+{
+	return this_cpu_id;
+}
+
+int cpu_count(void)
+{
+	return local_apics;
+}
+
+void cpu_setup(void)
+{
+	paging_cpu_setup();
+	fpu_cpu_setup();
+	gdt_cpu_setup();
+	percpu_cpu_setup();
+	id_cpu_setup();
+	threads_cpu_setup();
+	scheduler_cpu_setup();
+	ints_cpu_setup();
+	time_cpu_setup();
 }

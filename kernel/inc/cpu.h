@@ -132,6 +132,8 @@ static inline unsigned long rflags(void)
 	return flags;
 }
 
-void gdt_cpu_setup(void);
+void cpu_setup(void);
+int cpu_id(void);
+int cpu_count(void);
 
 #endif /*__CPU_H__*/
