@@ -1,12 +1,12 @@
+#include <ioport.h>
+#include <debug.h>
 #include <apic.h>
 #include <acpi.h>
-#include <debug.h>
-#include <ioport.h>
 #include <cpu.h>
 
 
 #define MAX_IO_APICS	8
-#define MAX_LOCAL_APICS	8
+#define MAX_LOCAL_APICS	MAX_CPU_NR
 
 struct io_apic ioapic[MAX_IO_APICS];
 int ioapics;

@@ -18,6 +18,8 @@
 #define KERNEL_DATA	0x10
 #define KERNEL_CODE	0x08
 
+#define MAX_CPU_NR	8
+
 struct desc_ptr {
 	uint16_t limit;
 	uint64_t base;
