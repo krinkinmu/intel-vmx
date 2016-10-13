@@ -4,7 +4,6 @@
 #include <percpu.h>
 #include <debug.h>
 #include <alloc.h>
-#include <apic.h>
 #include <time.h>
 #include <list.h>
 #include <cpu.h>
@@ -156,12 +155,12 @@ void schedule(void)
 
 void scheduler_setup(void)
 {
-	queues = local_apics;
+	queues = cpu_count();
 	queue = (struct scheduler_queue *)mem_alloc(queues * sizeof(*queue));
 	BUG_ON(!queue);
 
 	for (size_t i = 0; i != queues; ++i)
-		scheduler_queue_setup(queue + i, local_apic_ids[i]);
+		scheduler_queue_setup(queue + i, i);
 }
 
 static void scheduler_cpu_idle(void *unused)
@@ -174,7 +173,7 @@ static void scheduler_cpu_idle(void *unused)
 
 void scheduler_cpu_setup(void)
 {
-	const int this_cpu_id = local_apic_id();
+	const int this_cpu_id = cpu_id();
 
 	BUG_ON(!(cpu_idle = thread_create(&scheduler_cpu_idle, 0)));
 	thread_set_state(cpu_idle, THREAD_ACTIVE);
