@@ -10,6 +10,7 @@
 #include <time.h>
 #include <fpu.h>
 #include <cpu.h>
+#include <rcu.h>
 
 
 struct tss {
@@ -100,6 +101,7 @@ void cpu_setup(void)
 	percpu_cpu_setup();
 	id_cpu_setup();
 	hp_cpu_setup();
+	rcu_cpu_setup();
 	fpu_cpu_setup();
 	gdt_cpu_setup();
 	threads_cpu_setup();

@@ -14,6 +14,7 @@
 #include <apic.h>
 #include <ints.h>
 #include <cpu.h>
+#include <rcu.h>
 #include <vmx.h>
 
 
@@ -55,6 +56,7 @@ void main(const struct mboot_info *info)
 	page_alloc_setup();
 	mem_alloc_setup();
 	hp_setup();
+	rcu_setup();
 	threads_setup();
 
 	paging_setup();

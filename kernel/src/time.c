@@ -8,6 +8,7 @@
 #include <apic.h>
 #include <ints.h>
 #include <cpu.h>
+#include <rcu.h>
 
 
 struct acpi_hpet {
@@ -356,6 +357,8 @@ static void apic_timer_calibrate(void)
 static void apic_timer_handler(void)
 {
 	schedule();
+	rcu_report_qs();
+	rcu_tick();
 }
 
 static void apic_timer_ints_setup(void)
