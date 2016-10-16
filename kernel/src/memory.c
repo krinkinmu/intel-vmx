@@ -6,6 +6,7 @@
 
 #define PAGE_ORDER_MASK	0xfful
 #define PAGE_FREE_MASK	(1ul << 8)
+#define PAGE_USER_OFFS	16
 #define MEMORY_RANGES	(sizeof(memory_range)/sizeof(memory_range[0]))
 
 struct memory_range {
@@ -46,6 +47,21 @@ static inline void page_set_free(struct page *page)
 static inline void page_set_busy(struct page *page)
 {
 	page->flags &= ~PAGE_FREE_MASK;
+}
+
+void page_set_bit(struct page *page, int bit)
+{
+	page->flags |= 1ul << (bit + PAGE_USER_OFFS);
+}
+
+void page_clear_bit(struct page *page, int bit)
+{
+	page->flags &= ~(1ul << (bit + PAGE_USER_OFFS));
+}
+
+int page_test_bit(const struct page *page, int bit)
+{
+	return !!(page->flags & (1ul << (bit + PAGE_USER_OFFS)));
 }
 
 static void __page_alloc_zone_setup(uintptr_t zbegin, uintptr_t zend,
@@ -138,6 +154,25 @@ uintptr_t page_addr(const struct page *page)
 	const struct page_alloc_zone *zone = page_zone(page);
 
 	return (zone->begin + (page - zone->pages)) << PAGE_SHIFT;
+}
+
+struct page *addr_page(uintptr_t addr)
+{
+	const uintptr_t page = addr >> PAGE_SHIFT;
+	struct list_head *head = &page_alloc_zones;
+	struct list_head *ptr;
+
+	BUG_ON(addr & PAGE_MASK);
+
+	for (ptr = head->next; ptr != head; ptr = ptr->next) {
+		struct page_alloc_zone *zone = CONTAINER_OF(ptr,
+					struct page_alloc_zone, ll);
+		if (page < zone->begin || page >= zone->end)
+			continue;
+		return &zone->pages[page - zone->begin];
+	}
+	BUG("Page for addr 0x%lx not found\n", (unsigned long)addr);
+	return 0;
 }
 
 static void __page_alloc_zone_free(uintptr_t zbegin, uintptr_t zend)

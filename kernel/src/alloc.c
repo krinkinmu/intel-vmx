@@ -9,10 +9,12 @@
 #define WORD_SZ		sizeof(unsigned long long)
 #define OBJS_PER_WORD	(WORD_SZ * CHAR_BIT)
 #define MIN_POOL_OBJS	8
+#define PAGE_CACHE_BIT	0
 
 
 struct mem_pool {
 	struct list_head ll;
+	struct page *page;
 	void *data;
 	size_t free;
 	unsigned long long bitmask[1];
@@ -107,13 +109,20 @@ static void mem_pool_bitmap_setup(struct mem_cache *cache,
 static struct mem_pool *mem_pool_create(struct mem_cache *cache,
 			unsigned long flags)
 {
-	const uintptr_t addr = page_alloc(cache->pool_order, flags);
+	struct page *page = __page_alloc(cache->pool_order, flags);
 
-	if (!addr)
+	if (!page)
 		return 0;
 
+	const uintptr_t addr = page_addr(page); 
 	struct mem_pool *meta = (struct mem_pool *)(addr + cache->meta_offs);
 
+	for (int i = 0; i != 1 << cache->pool_order; ++i) {
+		page_set_bit(&page[i], PAGE_CACHE_BIT);
+		page[i].u.cache = cache;
+	}
+
+	meta->page = page;
 	meta->data = (void *)addr;
 	meta->free = cache->obj_count;
 	mem_pool_bitmap_setup(cache, meta);
@@ -124,6 +133,14 @@ static struct mem_pool *mem_pool_create(struct mem_cache *cache,
 static void mem_pool_destroy(struct mem_cache *cache, struct mem_pool *pool)
 {
 	BUG_ON(pool->free != cache->obj_count);
+
+	struct page *page = pool->page;
+
+	for (int i = 0; i != 1 << cache->pool_order; ++i) {
+		page_clear_bit(&page[i], PAGE_CACHE_BIT);
+		page[i].u.cache = 0;
+	}
+
 	page_free((uintptr_t)pool->data, cache->pool_order);
 }
 
@@ -285,18 +302,6 @@ void mem_cache_free(struct mem_cache *cache, void *ptr)
 }
 
 
-struct mem_entry {
-	struct rb_node rb;
-	void *ptr;
-	struct mem_cache *cache;
-	size_t size;
-	int order;
-};
-
-static struct mem_cache mem_entries_cache;
-static struct rb_tree mem_entries;
-static struct spinlock mem_entries_lock;
-
 #define MEM_POOLS	(sizeof(mem_pool_size) / sizeof(mem_pool_size[0]))
 
 static size_t mem_pool_size[] = {
@@ -308,59 +313,6 @@ static size_t mem_pool_size[] = {
 };
 static struct mem_cache mem_pool[MEM_POOLS];
 
-static struct mem_entry *mem_entry_create(void)
-{
-	return mem_cache_alloc(&mem_entries_cache, PA_ANY);
-}
-
-static void mem_entry_destroy(struct mem_entry *entry)
-{
-	mem_cache_free(&mem_entries_cache, entry);
-}
-
-static void __mem_entry_insert(struct mem_entry *new)
-{
-	struct rb_node **plink = &mem_entries.root;
-	struct rb_node *parent = 0;
-
-	while (*plink) {
-		const struct mem_entry *e = TREE_ENTRY(*plink,
-					struct mem_entry, rb);
-
-		parent = *plink;
-		if (e->ptr < new->ptr)
-			plink = &parent->right;
-		else
-			plink = &parent->left;
-	}
-
-	rb_link(&new->rb, parent, plink);
-	rb_insert(&new->rb, &mem_entries);
-}
-
-static struct mem_entry *__mem_entry_lookup(void *addr)
-{
-	struct rb_node *ptr = mem_entries.root;
-
-	while (ptr) {
-		struct mem_entry *e = TREE_ENTRY(ptr, struct mem_entry, rb);
-
-		if (e->ptr == addr)
-			return e;
-
-		if (e->ptr < addr)
-			ptr = ptr->right;
-		else
-			ptr = ptr->left;
-	}
-
-	return 0;
-}
-
-static void __mem_entry_remove(struct mem_entry *entry)
-{
-	rb_erase(&entry->rb, &mem_entries);
-}
 
 static struct mem_cache *mem_pool_lookup(size_t size)
 {
@@ -382,64 +334,48 @@ static int mem_order_calculate(size_t size)
 
 void mem_alloc_setup(void)
 {
-	const size_t size = sizeof(struct mem_entry);
+	for (int i = 0; i != MEM_POOLS; ++i) {
+		const size_t size = mem_pool_size[i];
+		const size_t align = mem_pool_size[0];
 
-	mem_cache_setup(&mem_entries_cache, size, size);
-	spin_lock_init(&mem_entries_lock);
-
-	for (int i = 0; i != MEM_POOLS; ++i)
-		mem_cache_setup(&mem_pool[i], mem_pool_size[i],
-					mem_pool_size[0]);
-}
-
-static struct mem_entry *__mem_alloc(size_t size)
-{
-	struct mem_entry *entry = mem_entry_create();
-
-	if (!entry)
-		return 0;
-
-	entry->cache = mem_pool_lookup(size);
-	if (entry->cache) {
-		entry->ptr = mem_cache_alloc(entry->cache, PA_ANY);
-		entry->order = MAX_ORDER + 1;
-	} else {
-		entry->order = mem_order_calculate(size);
-		entry->ptr = (void *)page_alloc(entry->order, PA_ANY);
+		mem_cache_setup(&mem_pool[i], size, align);
 	}
-
-	if (!entry->ptr) {
-		mem_cache_free(&mem_entries_cache, entry);
-
-		return 0;
-	}
-	entry->size = size;
-
-	return entry;
 }
 
 void *mem_alloc(size_t size)
 {
-	struct mem_entry *entry = __mem_alloc(size);
+	struct mem_cache *cache = mem_pool_lookup(size);
 
-	if (!entry)
+	if (cache)
+		return mem_cache_alloc(cache, PA_ANY);
+
+	const int order = mem_order_calculate(size);
+	struct page *page = __page_alloc(order, PA_ANY);
+
+	if (!page)
 		return 0;
 
-	const unsigned long flags = spin_lock_save(&mem_entries_lock);
+	page_clear_bit(page, PAGE_CACHE_BIT);
+	page->u.order = order;
 
-	__mem_entry_insert(entry);
-	spin_unlock_restore(&mem_entries_lock, flags);
-
-	return entry->ptr;
+	return (void *)page_addr(page);
 }
 
-static void __mem_free(struct mem_entry *entry)
+void mem_free(void *ptr)
 {
-	if (entry->cache)
-		mem_cache_free(entry->cache, entry->ptr);
-	else
-		page_free((uintptr_t)entry->ptr, entry->order);
-	mem_entry_destroy(entry);
+	if (!ptr)
+		return;
+
+	struct page *page = addr_page((uintptr_t)ptr & ~(uintptr_t)PAGE_MASK);
+
+	if (page_test_bit(page, PAGE_CACHE_BIT)) {
+		mem_cache_free(page->u.cache, ptr);
+		return;
+	}
+
+	page_clear_bit(page, PAGE_CACHE_BIT);
+	page->u.order = 0;
+	__page_free(page, page->u.order);
 }
 
 void *mem_realloc(void *ptr, size_t size)
@@ -447,42 +383,29 @@ void *mem_realloc(void *ptr, size_t size)
 	if (!ptr)
 		return mem_alloc(size);
 
-	unsigned long flags = spin_lock_save(&mem_entries_lock);
-	struct mem_entry *old = __mem_entry_lookup(ptr);
+	struct page *page = addr_page((uintptr_t)ptr & ~(uintptr_t)PAGE_MASK);
+	size_t old_size;
 
-	BUG_ON(!old);
-	spin_unlock_restore(&mem_entries_lock, flags);
+	if (page_test_bit(page, PAGE_CACHE_BIT)) {
+		struct mem_cache *cache = page->u.cache;
 
-	if (old->cache) {
-		if (size <= old->cache->obj_size)
+		old_size = cache->obj_size;
+		if (old_size >= size)
 			return ptr;
 	} else {
-		if (size <= ((size_t)1 << (old->order + PAGE_SHIFT)))
+		const int order = page->u.order;
+
+		old_size = (size_t)1 << (PAGE_SHIFT + order);
+		if (old_size >= size)
 			return ptr;
 	}
 
-	struct mem_entry *new = __mem_alloc(size);
+	void *new = mem_alloc(size);
 
 	if (!new)
 		return 0;
 
-	memcpy(new->ptr, old->ptr, old->size);
-	flags = spin_lock_save(&mem_entries_lock);
-	__mem_entry_remove(old);
-	__mem_entry_insert(new);
-	spin_unlock_restore(&mem_entries_lock, flags);
-	__mem_free(old);
-
-	return new->ptr;
-}
-
-void mem_free(void *ptr)
-{
-	const unsigned long flags = spin_lock_save(&mem_entries_lock);
-	struct mem_entry *entry = __mem_entry_lookup(ptr);
-
-	BUG_ON(!entry);
-	__mem_entry_remove(entry);
-	spin_unlock_restore(&mem_entries_lock, flags);
-	__mem_free(entry);
+	memcpy(new, ptr, old_size);
+	mem_free(ptr);
+	return new;
 }

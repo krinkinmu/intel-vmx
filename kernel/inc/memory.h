@@ -23,9 +23,15 @@
 
 #define KERNEL_CS	0x08
 
+struct mem_cache;
+
 struct page {
 	struct list_head ll;
 	unsigned long flags;
+	union {
+		struct mem_cache *cache;
+		int order;
+	} u;
 };
 
 struct page_alloc_zone {
@@ -41,6 +47,11 @@ struct page_alloc_zone {
 extern struct list_head page_alloc_zones;
 
 uintptr_t page_addr(const struct page *page);
+struct page *addr_page(uintptr_t addr);
+
+void page_set_bit(struct page *page, int bit);
+void page_clear_bit(struct page *page, int bit);
+int page_test_bit(const struct page *page, int bit);
 
 void page_alloc_setup(void);
 struct page *__page_alloc(int order, unsigned long flags);
