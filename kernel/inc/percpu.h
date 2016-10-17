@@ -7,7 +7,7 @@
  * same effect with section attribute, but it only works for initialized data,
  * so we would need to combine it with something else, for example weak
  * attribute, so i use this dirty hack with TLS, since it seems simpler. */
-#define __percpu	__thread
+#define __percpu	_Thread_local
 
 void percpu_cpu_setup(void);
 
