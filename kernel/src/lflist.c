@@ -21,16 +21,16 @@ static inline int lf_is_marked(const struct lf_node *node)
 	return ((uintptr_t)node & DELETED) != 0;
 }
 
-void lf_list_init(struct lf_list *list)
+void lf_list_setup(struct lf_list *lst, lf_node_cmp_t cmp)
 {
-	atomic_store_explicit(&list->head.next, &list->tail,
+	atomic_store_explicit(&lst->head.next, &lst->tail,
 				memory_order_relaxed);
-	atomic_store_explicit(&list->tail.next, 0,
+	atomic_store_explicit(&lst->tail.next, 0,
 				memory_order_relaxed);
+	lst->cmp = cmp;
 }
 
 static void lf_search(struct lf_list *lst, const struct lf_node *key,
-			lf_node_cmp_t cmp,
 			struct lf_node **prev, struct lf_node **next)
 {
 	struct lf_node *prev_next, *next_next;
@@ -53,7 +53,7 @@ again:
 
 			n = atomic_load_explicit(&p->next,
 						memory_order_consume);
-		} while (lf_is_marked(n) || cmp(p, key) < 0);
+		} while (lf_is_marked(n) || lst->cmp(p, key) < 0);
 
 		*next = p;
 
@@ -80,40 +80,42 @@ again:
 	}
 }
 
-struct lf_node *lf_list_lookup(struct lf_list *lst, const struct lf_node *key,
-			lf_node_cmp_t cmp)
+struct lf_node *lf_list_lookup(struct lf_list *lst, const struct lf_node *key)
 {
 	struct lf_node *prev, *next;
 
-	lf_search(lst, key, cmp, &prev, &next);
-	if ((next == &lst->tail) || cmp(next, key))
+	lf_search(lst, key, &prev, &next);
+	if ((next == &lst->tail) || lst->cmp(next, key))
 		return 0;
 	return next;
 }
 
-void lf_list_insert(struct lf_list *lst, struct lf_node *key, lf_node_cmp_t cmp)
+struct lf_node *lf_list_insert(struct lf_list *lst, struct lf_node *key)
 {
 	struct lf_node *prev, *next;
 
 	while (1) {
-		lf_search(lst, key, cmp, &prev, &next);
+		lf_search(lst, key, &prev, &next);
+
+		if ((next != &lst->tail) && !lst->cmp(next, key))
+			return next;
+
 		atomic_store_explicit(&key->next, next, memory_order_release);
 		if (atomic_compare_exchange_strong_explicit(&prev->next,
 					&next, key,
 					memory_order_release,
 					memory_order_relaxed))
-			return;
+			return key;
 	}
 }
 
-int lf_list_remove(struct lf_list *lst, const struct lf_node *key,
-			lf_node_cmp_t cmp)
+struct lf_node *lf_list_remove(struct lf_list *lst, const struct lf_node *key)
 {
 	struct lf_node *prev, *next, *next_next;
 
 	while (1) {
-		lf_search(lst, key, cmp, &prev, &next);
-		if ((next == &lst->tail) || cmp(key, next))
+		lf_search(lst, key, &prev, &next);
+		if ((next == &lst->tail) || lst->cmp(key, next))
 			return 0;
 
 		next_next = atomic_load_explicit(&next->next,
@@ -132,6 +134,6 @@ int lf_list_remove(struct lf_list *lst, const struct lf_node *key,
 				next_next,
 				memory_order_release,
 				memory_order_relaxed))
-		lf_search(lst, next, cmp, &prev, &next);
-	return 1;
+		lf_search(lst, next, &prev, &next);
+	return next;
 }
