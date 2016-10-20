@@ -8,12 +8,12 @@
 
 static inline struct lf_node *lf_marked(const struct lf_node *node)
 {
-	return (struct lf_node *)((uintptr_t)node & ~DELETED);
+	return (struct lf_node *)((uintptr_t)node | DELETED);
 }
 
 static inline struct lf_node *lf_unmarked(const struct lf_node *node)
 {
-	return (struct lf_node *)((uintptr_t)node | DELETED);
+	return (struct lf_node *)((uintptr_t)node & ~DELETED);
 }
 
 static inline int lf_is_marked(const struct lf_node *node)
