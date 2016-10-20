@@ -7,6 +7,7 @@
 #include <thread.h>
 #include <paging.h>
 #include <hazptr.h>
+#include <lflist.h>
 #include <debug.h>
 #include <alloc.h>
 #include <time.h>
@@ -36,13 +37,52 @@ static void gdb_hang(void)
 #endif
 }
 
-static void thread_function(void *id)
+struct lf_int {
+	struct lf_node ll;
+	int value;
+};
+
+static int lf_int_cmp(const struct lf_node *l, const struct lf_node *r)
 {
-	printf("%d on %d\n", (int)(uintptr_t)id, local_apic_id());
-	while (1) {
-		printf("%d, hello from %d\n", (int)(uintptr_t)id, local_apic_id());
-		udelay(10000);
+	const struct lf_int *left = (const struct lf_int *)l;
+	const struct lf_int *right = (const struct lf_int *)r;
+
+	if (left->value != right->value)
+		return left->value < right->value ? -1 : 1;
+	return 0;
+}
+
+static void test_lflist(void)
+{
+	struct mem_cache cache;
+	struct lf_list lst;
+	int i, j;
+
+	printf("start lock-free linked list test\n");
+	lf_list_setup(&lst, &lf_int_cmp);
+	mem_cache_setup(&cache, sizeof(struct lf_int), sizeof(struct lf_int));
+
+	for (i = 0; i != 100000; ++i) {
+		struct lf_int *node = mem_cache_alloc(&cache, PA_ANY);
+
+		if (!node)
+			break;
+		node->value = i;
+		lf_list_insert(&lst, &node->ll);
 	}
+
+	for (j = 0; j != i; ++j) {
+		struct lf_node *node;
+		struct lf_int key;
+
+		key.value = j;
+		node = lf_list_remove(&lst, &key.ll);
+		BUG_ON(!node);
+		mem_cache_free(&cache, (struct lf_int *)node);
+	}
+
+	mem_cache_release(&cache);
+	printf("finished lock-free linked list test\n");
 }
 
 void main(const struct mboot_info *info)
@@ -69,20 +109,7 @@ void main(const struct mboot_info *info)
 
 	//vmx_setup();
 
-	struct thread *thread0 = thread_create(&thread_function, (void *)0);
-	struct thread *thread1 = thread_create(&thread_function, (void *)1);
-	struct thread *thread2 = thread_create(&thread_function, (void *)2);
-	struct thread *thread3 = thread_create(&thread_function, (void *)3);
-
-	printf("thread0 %p\n", thread0);
-	printf("thread1 %p\n", thread1);
-	printf("thread2 %p\n", thread2);
-	printf("thread3 %p\n", thread3);
-
-	thread_activate(thread0);
-	thread_activate(thread1);
-	thread_activate(thread2);
-	thread_activate(thread3);
+	test_lflist();
 
 	while (1);
 }
