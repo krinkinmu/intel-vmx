@@ -38,11 +38,12 @@ static void gdb_hang(void)
 }
 
 struct lf_int {
-	struct lf_node ll;
+	struct lf_list_head ll;
 	int value;
 };
 
-static int lf_int_cmp(const struct lf_node *l, const struct lf_node *r)
+static int lf_int_cmp(const struct lf_list_head *l,
+			const struct lf_list_head *r)
 {
 	const struct lf_int *left = (const struct lf_int *)l;
 	const struct lf_int *right = (const struct lf_int *)r;
@@ -55,11 +56,11 @@ static int lf_int_cmp(const struct lf_node *l, const struct lf_node *r)
 static void test_lflist(void)
 {
 	struct mem_cache cache;
-	struct lf_list lst;
+	struct lf_list_head lst;
 	int i, j;
 
 	printf("start lock-free linked list test\n");
-	lf_list_setup(&lst, &lf_int_cmp);
+	lf_list_init(&lst);
 	mem_cache_setup(&cache, sizeof(struct lf_int), sizeof(struct lf_int));
 
 	for (i = 0; i != 100000; ++i) {
@@ -68,16 +69,16 @@ static void test_lflist(void)
 		if (!node)
 			break;
 		node->value = i;
-		lf_list_insert(&lst, &node->ll);
+		BUG_ON(!lf_list_insert(&lst, &node->ll, &lf_int_cmp));
 	}
 
 	for (j = 0; j != i; ++j) {
-		struct lf_node *node;
+		struct lf_list_head *node;
 		struct lf_int key;
 
 		key.value = j;
-		node = lf_list_remove(&lst, &key.ll);
-		BUG_ON(!node);
+		BUG_ON(!(node = lf_list_lookup(&lst, &key.ll, &lf_int_cmp)));
+		BUG_ON(!lf_list_remove(&lst, &key.ll, &lf_int_cmp));
 		mem_cache_free(&cache, (struct lf_int *)node);
 	}
 
