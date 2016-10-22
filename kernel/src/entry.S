@@ -19,6 +19,7 @@ __thread_switch:
 	pushq %r15
 
 	movq %rsp, (%rdi)
+	mfence
 	movq %rsi, %rsp
 
 	popq %r15
