@@ -29,6 +29,7 @@ void threads_cpu_setup(void);
 
 struct thread *__thread_create(thread_fptr_t fptr, void *arg, int stack_order);
 struct thread *thread_create(thread_fptr_t fptr, void *arg);
+void thread_join(struct thread *thread);
 void thread_destroy(struct thread *thread);
 
 void thread_activate(struct thread *thread);

@@ -67,7 +67,10 @@ void thread_entry(thread_fptr_t fptr, void *arg)
 {
 	local_int_enable();
 	fptr(arg);
-	while (1);
+
+	thread_set_state(thread_current(), THREAD_FINISHING);
+	while (1)
+		schedule();
 }
 
 struct thread *__thread_create(thread_fptr_t fptr, void *arg, int stack_order)
@@ -117,6 +120,12 @@ struct thread *thread_create(thread_fptr_t fptr, void *arg)
 	const int default_stack_order = 0;
 
 	return __thread_create(fptr, arg, default_stack_order);
+}
+
+void thread_join(struct thread *thread)
+{
+	while (thread_get_state(thread) != THREAD_FINISHED)
+		schedule();
 }
 
 void thread_destroy(struct thread *thread)
