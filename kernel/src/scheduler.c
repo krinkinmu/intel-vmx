@@ -132,15 +132,8 @@ static struct thread *scheduler_next_thread(void)
 
 void scheduler_activate_thread(struct thread *thread)
 {
-	thread_set_state(thread, THREAD_ACTIVE);
+	BUG_ON(thread_get_state(thread) != THREAD_ACTIVE);
 	scheduler_queue_insert(cpu_queue, thread);
-}
-
-void scheduler_block_thread(void)
-{
-	struct thread *thread = thread_current();
-
-	thread_set_state(thread, THREAD_BLOCKED);
 }
 
 void schedule(void)

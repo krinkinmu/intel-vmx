@@ -4,7 +4,6 @@
 struct thread;
 
 void scheduler_activate_thread(struct thread *thread);
-void scheduler_block_thread(void);
 
 void schedule(void);
 
