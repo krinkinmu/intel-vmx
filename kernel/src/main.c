@@ -53,13 +53,14 @@ static int lf_int_cmp(const struct lf_list_head *l,
 	return 0;
 }
 
-static void test_lflist(void)
+static void __test_lflist(void *unused)
 {
 	struct mem_cache cache;
 	struct lf_list_head lst;
 	int i, j;
 
-	printf("start lock-free linked list test\n");
+	(void) unused;
+
 	lf_list_init(&lst);
 	mem_cache_setup(&cache, sizeof(struct lf_int), sizeof(struct lf_int));
 
@@ -83,6 +84,16 @@ static void test_lflist(void)
 	}
 
 	mem_cache_release(&cache);
+}
+
+static void test_lflist(void)
+{
+	struct thread *thread = thread_create(&__test_lflist, 0);
+
+	printf("start lock-free linked list test\n");
+	thread_activate(thread);
+	thread_join(thread);
+	thread_destroy(thread);
 	printf("finished lock-free linked list test\n");
 }
 
