@@ -17,10 +17,10 @@ void mutex_init(struct mutex *mutex)
 
 void mutex_lock(struct mutex *mutex)
 {
-	const unsigned long flags = spin_lock_save(&mutex->lock);
 	struct thread *self = thread_current();
 	struct mutex_wait wait;
 
+	spin_lock(&mutex->lock);
 	if (mutex->owner) {
 		wait.thread = self;
 		list_add_tail(&wait.ll, &mutex->wait_list);
@@ -28,7 +28,7 @@ void mutex_lock(struct mutex *mutex)
 	} else {
 		mutex->owner = self;
 	}
-	spin_unlock_restore(&mutex->lock, flags);
+	spin_unlock(&mutex->lock);
 
 	if (mutex->owner == self)
 		return;
@@ -37,10 +37,12 @@ void mutex_lock(struct mutex *mutex)
 
 void mutex_unlock(struct mutex *mutex)
 {
-	const unsigned long flags = spin_lock_save(&mutex->lock);
-	struct list_head *head = &mutex->wait_list;
-	struct list_head *next = head->next;
+	struct list_head *head;
+	struct list_head *next;
 
+	spin_lock(&mutex->lock);
+	head = &mutex->wait_list;
+	next = head->next;
 	if (next != head) {
 		struct mutex_wait *wait = CONTAINER_OF(next,
 					struct mutex_wait, ll);
@@ -52,5 +54,5 @@ void mutex_unlock(struct mutex *mutex)
 	} else {
 		mutex->owner = 0;
 	}
-	spin_unlock_restore(&mutex->lock, flags);
+	spin_unlock(&mutex->lock);
 }
