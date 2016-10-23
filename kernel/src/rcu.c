@@ -1,3 +1,4 @@
+#include <scheduler.h>
 #include <spinlock.h>
 #include <percpu.h>
 #include <ints.h>
@@ -9,8 +10,6 @@
 static __percpu unsigned long rcu_cpu_qs;
 static __percpu unsigned long rcu_last_cpu_qs;
 static __percpu unsigned long rcu_cpu_gen;
-static __percpu unsigned long rcu_cpu_flags;
-static __percpu unsigned long rcu_cpu_depth;
 
 static __percpu struct list_head rcu_cpu_next;
 static __percpu struct list_head rcu_cpu_curr;
@@ -99,16 +98,12 @@ void rcu_report_qs(void)
 
 void rcu_read_lock(void)
 {
-	const unsigned long flags = local_int_save();
-
-	if (!(rcu_cpu_depth++))
-		rcu_cpu_flags = flags;
+	preempt_disable();
 }
 
 void rcu_read_unlock(void)
 {
-	if (!(--rcu_cpu_depth))
-		local_int_restore(rcu_cpu_flags);
+	preempt_enable();
 }
 
 void rcu_call(struct rcu_callback *cb, void (*fptr)(struct rcu_callback *))
