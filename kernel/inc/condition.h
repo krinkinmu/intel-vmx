@@ -1,11 +1,9 @@
 #ifndef __CONDITION_H__
 #define __CONDITION_H__
 
-#include <spinlock.h>
 #include <list.h>
 
 struct condition {
-	struct spinlock lock;
 	struct list_head wait_list;
 };
 

@@ -12,22 +12,21 @@ struct condition_wait {
 
 void condition_init(struct condition *condition)
 {
-	spin_lock_init(&condition->lock);
 	list_init(&condition->wait_list);
 }
 
 void condition_wait(struct mutex *mutex, struct condition *condition)
 {
-	const unsigned long flags = local_int_save();
 	struct thread *self = thread_current();
 	struct condition_wait wait;
 
 	wait.thread = self;
 	list_add_tail(&wait.ll, &condition->wait_list);
-	thread_set_state(self, THREAD_BLOCKED);
 
+	preempt_disable();
+	thread_set_state(self, THREAD_BLOCKED);
 	mutex_unlock(mutex);
-	local_int_restore(flags);
+	preempt_enable();
 
 	if (thread_get_state(self) != THREAD_ACTIVE)
 		schedule();
