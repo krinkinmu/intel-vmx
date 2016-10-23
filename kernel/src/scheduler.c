@@ -7,6 +7,7 @@
 #include <time.h>
 #include <list.h>
 #include <cpu.h>
+#include <rcu.h>
 
 #define SCHEDULER_SLICE	100
 
@@ -19,6 +20,7 @@ struct scheduler_queue {
 
 static __percpu struct scheduler_queue *cpu_queue;
 static __percpu struct thread *cpu_idle;
+static __percpu atomic_uint preempt_count;
 static struct scheduler_queue *queue;
 static size_t queues;
 
@@ -61,15 +63,30 @@ static void scheduler_queue_insert(struct scheduler_queue *queue,
 	spin_unlock_restore(&queue->lock, flags);
 }
 
+static int can_preempt(void)
+{
+	return atomic_load_explicit(&preempt_count, memory_order_relaxed) == 0;
+}
+
+void preempt_enable(void)
+{
+	atomic_fetch_add_explicit(&preempt_count, 1, memory_order_relaxed);
+}
+
+void preempt_disable(void)
+{
+	atomic_fetch_sub_explicit(&preempt_count, 1, memory_order_relaxed);
+}
+
 static int scheduler_need_preemption(struct thread *thread)
 {
 	const unsigned long long time = current_time();
 
 	BUG_ON(time < thread->timestamp);
 
-	return thread == cpu_idle ||
+	return can_preempt() && (thread == cpu_idle ||
 		(thread_get_state(thread) != THREAD_ACTIVE) ||
-		(time - thread->timestamp > SCHEDULER_SLICE);
+		(time - thread->timestamp > SCHEDULER_SLICE));
 }
 
 static struct thread *__scheduler_next_thread(void)
@@ -141,6 +158,7 @@ void schedule(void)
 	const unsigned long flags = local_int_save();
 	struct thread *next = scheduler_next_thread();
 
+	rcu_report_qs();
 	if (next)
 		thread_switch_to(next);
 	local_int_restore(flags);

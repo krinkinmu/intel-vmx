@@ -5,6 +5,8 @@ struct thread;
 
 void scheduler_activate_thread(struct thread *thread);
 
+void preempt_disable(void);
+void preempt_enable(void);
 void schedule(void);
 
 void scheduler_setup(void);

@@ -357,7 +357,6 @@ static void apic_timer_calibrate(void)
 static void apic_timer_handler(void)
 {
 	schedule();
-	rcu_report_qs();
 	rcu_tick();
 }
 
