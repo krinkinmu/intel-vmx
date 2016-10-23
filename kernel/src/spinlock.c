@@ -1,3 +1,4 @@
+#include <scheduler.h>
 #include <spinlock.h>
 #include <ints.h>
 #include <cpu.h>
@@ -29,17 +30,29 @@ void spin_lock_init(struct spinlock *lock)
 	atomic_init(&lock->current, 0);
 }
 
+void spin_lock(struct spinlock *lock)
+{
+	preempt_disable();
+	__spin_lock(lock);
+}
+
 unsigned long spin_lock_save(struct spinlock *lock)
 {
 	const unsigned long flags = local_int_save();
 
-	__spin_lock(lock);
+	spin_lock(lock);
 	return flags;
+}
+
+void spin_unlock(struct spinlock *lock)
+{
+	__spin_unlock(lock);
+	preempt_enable();
 }
 
 void spin_unlock_restore(struct spinlock *lock, unsigned long flags)
 {
-	__spin_unlock(lock);
+	spin_unlock(lock);
 	local_int_restore(flags);
 }
 
@@ -93,30 +106,54 @@ static void __write_unlock(struct rwlock *lock)
 				memory_order_relaxed);
 }
 
+void read_lock(struct rwlock *lock)
+{
+	preempt_disable();
+	__read_lock(lock);
+}
+
 unsigned long read_lock_save(struct rwlock *lock)
 {
 	const unsigned long flags = local_int_save();
 
-	__read_lock(lock);
+	read_lock(lock);
 	return flags;
+}
+
+void read_unlock(struct rwlock *lock)
+{
+	__read_unlock(lock);
+	preempt_enable();
 }
 
 void read_unlock_restore(struct rwlock *lock, unsigned long flags)
 {
-	__read_unlock(lock);
+	read_unlock(lock);
 	local_int_restore(flags);
+}
+
+void write_lock(struct rwlock *lock)
+{
+	preempt_disable();
+	__write_lock(lock);
 }
 
 unsigned long write_lock_save(struct rwlock *lock)
 {
 	const unsigned long flags = local_int_save();
 
-	__write_lock(lock);
+	write_lock(lock);
 	return flags;
+}
+
+void write_unlock(struct rwlock *lock)
+{
+	__write_unlock(lock);
+	preempt_enable();
 }
 
 void write_unlock_restore(struct rwlock *lock, unsigned long flags)
 {
-	__write_unlock(lock);
+	write_unlock(lock);
 	local_int_restore(flags);
 }
