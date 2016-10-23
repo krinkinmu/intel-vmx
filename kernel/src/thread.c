@@ -169,5 +169,5 @@ void thread_switch_to(struct thread *next)
 	current = prev;
 	fpu_state_restore(next->fpu_state);
 
-	local_int_restore(flags);	
+	local_int_restore(flags);
 }
