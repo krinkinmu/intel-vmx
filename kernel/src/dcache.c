@@ -109,6 +109,7 @@ static void dcache_grow(void)
 static void __dcache_insert(struct dcache_bucket *bucket,
 			struct dcache_node *new)
 {
+	const uint64_t minkey = bucket->node.key;
 	struct list_head *head = &bucket->node.ll;
 	struct list_head *ptr = head->next;
 
@@ -116,6 +117,8 @@ static void __dcache_insert(struct dcache_bucket *bucket,
 		struct dcache_node *node = CONTAINER_OF(ptr,
 					struct dcache_node, ll);
 
+		if (node->key < minkey)
+			break;
 		ptr = ptr->next;
 		if (node->key < new->key)
 			continue;
@@ -330,6 +333,7 @@ void dcache_add(struct dentry *dentry)
 static struct dentry *__dcache_lookup(struct dcache_bucket *bucket,
 			uint64_t key, struct dentry *parent, const char *name)
 {
+	const uint64_t minkey = bucket->node.key;
 	struct list_head *head = &bucket->node.ll;
 	struct list_head *ptr = head->next;
 
@@ -337,6 +341,8 @@ static struct dentry *__dcache_lookup(struct dcache_bucket *bucket,
 		struct dcache_node *node = CONTAINER_OF(ptr,
 					struct dcache_node, ll);
 
+		if (node->key < minkey)
+			break;
 		ptr = ptr->next;
 		if (node->key < key)
 			continue;
