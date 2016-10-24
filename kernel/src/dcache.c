@@ -47,88 +47,6 @@ static size_t dcache_table_segs(size_t buckets)
 	return (buckets + BUCKETS - 1) / BUCKETS;
 }
 
-static void dcache_rcu_callback(struct rcu_callback *rcu)
-{
-	struct dcache_table *table = CONTAINER_OF(rcu,
-				struct dcache_table, rcu);
-
-	mem_free(table);
-}
-
-static void __dcache_grow(void)
-{
-	static const size_t initial_size = 4096;
-
-	struct dcache_table *old = atomic_load_explicit(&table,
-				memory_order_consume);
-
-	const size_t oldbuckets = old ? old->buckets : 0;
-	const size_t newbuckets = oldbuckets ? oldbuckets * 2 : initial_size;
-
-	const size_t oldsegs = dcache_table_segs(oldbuckets);
-	const size_t newsegs = dcache_table_segs(newbuckets);
-
-	const size_t oldsize = dcache_table_size(oldsegs);
-	const size_t newsize = dcache_table_size(newsegs);
-
-	struct dcache_table *new = mem_alloc(newsize);
-
-	if (!new)
-		return;
-
-	memset(new, 0, newsize);
-	memcpy(new, old, oldsize);
-	new->buckets = newbuckets;
-	atomic_store_explicit(&table, new, memory_order_release);
-
-	if (old)
-		rcu_call(&old->rcu, &dcache_rcu_callback);
-}
-
-static void dcache_grow(void)
-{
-	struct dcache_table *old;
-	size_t entries;
-
-	rcu_read_lock();
-	old = atomic_load_explicit(&table, memory_order_consume);
-	entries = atomic_load_explicit(&entries, memory_order_relaxed);
-
-	if (old->buckets * LOAD_FACTOR < entries) {
-		const unsigned long flags = spin_lock_save(&resize_lock);
-
-		old = atomic_load_explicit(&table, memory_order_relaxed);
-		entries = atomic_load_explicit(&entries, memory_order_relaxed);
-		if (old->buckets * LOAD_FACTOR < entries)
-			__dcache_grow();
-		spin_unlock_restore(&resize_lock, flags);
-	}
-	rcu_read_unlock();
-}
-
-static void __dcache_insert(struct dcache_bucket *bucket,
-			struct dcache_node *new)
-{
-	const uint64_t minkey = bucket->node.key;
-	struct list_head *head = &bucket->node.ll;
-	struct list_head *ptr = head->next;
-
-	while (ptr != head) {
-		struct dcache_node *node = CONTAINER_OF(ptr,
-					struct dcache_node, ll);
-
-		if (node->key < minkey)
-			break;
-		ptr = ptr->next;
-		if (node->key < new->key)
-			continue;
-
-		list_insert_before(&new->ll, &node->ll);
-		return;
-	}
-	list_insert_before(&new->ll, ptr);
-}
-
 static uint8_t __dcache_rev(uint8_t key)
 {
 	static const uint8_t rvtable[] = {
@@ -212,6 +130,123 @@ static uint64_t dcache_hash(const struct dentry *parent, const char *name)
 		name_hash = (name_hash + (unsigned)(*name++)) * mul;
 
 	return name_hash + (uint64_t)parent;
+}
+
+static void __dcache_insert(struct dcache_bucket *bucket,
+			struct dcache_node *new)
+{
+	const uint64_t minkey = bucket->node.key;
+	struct list_head *head = &bucket->node.ll;
+	struct list_head *ptr = head->next;
+
+	while (ptr != head) {
+		struct dcache_node *node = CONTAINER_OF(ptr,
+					struct dcache_node, ll);
+
+		if (node->key < minkey)
+			break;
+		ptr = ptr->next;
+		if (node->key < new->key)
+			continue;
+
+		list_insert_before(&new->ll, &node->ll);
+		return;
+	}
+	list_insert_before(&new->ll, ptr);
+}
+
+static struct dentry *__dcache_lookup(struct dcache_bucket *bucket,
+			uint64_t key, struct dentry *parent, const char *name)
+{
+	const uint64_t minkey = bucket->node.key;
+	struct list_head *head = &bucket->node.ll;
+	struct list_head *ptr = head->next;
+
+	while (ptr != head) {
+		struct dcache_node *node = CONTAINER_OF(ptr,
+					struct dcache_node, ll);
+
+		if (node->key < minkey)
+			break;
+		ptr = ptr->next;
+		if (node->key < key)
+			continue;
+		if (node->key > key)
+			break;
+
+		struct dentry *entry = CONTAINER_OF(node, struct dentry, node);
+
+		if (entry->parent == parent && !strcmp(entry->name, name))
+			return entry;
+	}
+
+	return 0;
+}
+
+static void __dcache_remove(struct dcache_bucket *bucket,
+			struct dcache_node *node)
+{
+	(void) bucket;
+	list_del(&node->ll);
+}
+
+static void dcache_rcu_callback(struct rcu_callback *rcu)
+{
+	struct dcache_table *table = CONTAINER_OF(rcu,
+				struct dcache_table, rcu);
+
+	mem_free(table);
+}
+
+static void __dcache_grow(void)
+{
+	static const size_t initial_size = 4096;
+
+	struct dcache_table *old = atomic_load_explicit(&table,
+				memory_order_consume);
+
+	const size_t oldbuckets = old ? old->buckets : 0;
+	const size_t newbuckets = oldbuckets ? oldbuckets * 2 : initial_size;
+
+	const size_t oldsegs = dcache_table_segs(oldbuckets);
+	const size_t newsegs = dcache_table_segs(newbuckets);
+
+	const size_t oldsize = dcache_table_size(oldsegs);
+	const size_t newsize = dcache_table_size(newsegs);
+
+	struct dcache_table *new = mem_alloc(newsize);
+
+	if (!new)
+		return;
+
+	memset(new, 0, newsize);
+	memcpy(new, old, oldsize);
+	new->buckets = newbuckets;
+	atomic_store_explicit(&table, new, memory_order_release);
+
+	if (old)
+		rcu_call(&old->rcu, &dcache_rcu_callback);
+}
+
+static void dcache_grow(void)
+{
+	struct dcache_table *old;
+	size_t entries;
+
+	rcu_read_lock();
+	old = atomic_load_explicit(&table, memory_order_consume);
+	entries = atomic_load_explicit(&entries, memory_order_relaxed);
+
+	if (old->buckets * LOAD_FACTOR < entries) {
+		const unsigned long flags = spin_lock_save(&resize_lock);
+
+		old = atomic_load_explicit(&table, memory_order_relaxed);
+		entries = atomic_load_explicit(&entries, memory_order_relaxed);
+		if (old->buckets * LOAD_FACTOR < entries)
+			__dcache_grow();
+		spin_unlock_restore(&resize_lock, flags);
+	}
+	rcu_read_unlock();
 }
 
 static struct dcache_seg *dcache_seg(struct dcache_table *table, size_t seg)
@@ -330,34 +365,6 @@ void dcache_add(struct dentry *dentry)
 	dcache_grow();
 }
 
-static struct dentry *__dcache_lookup(struct dcache_bucket *bucket,
-			uint64_t key, struct dentry *parent, const char *name)
-{
-	const uint64_t minkey = bucket->node.key;
-	struct list_head *head = &bucket->node.ll;
-	struct list_head *ptr = head->next;
-
-	while (ptr != head) {
-		struct dcache_node *node = CONTAINER_OF(ptr,
-					struct dcache_node, ll);
-
-		if (node->key < minkey)
-			break;
-		ptr = ptr->next;
-		if (node->key < key)
-			continue;
-		if (node->key > key)
-			break;
-
-		struct dentry *entry = CONTAINER_OF(node, struct dentry, node);
-
-		if (entry->parent == parent && !strcmp(entry->name, name))
-			return entry;
-	}
-
-	return 0;
-}
-
 struct dentry *dcache_lookup(struct dentry *parent, const char *name)
 {
 	const uint64_t hash = dcache_hash(parent, name);
@@ -370,13 +377,6 @@ struct dentry *dcache_lookup(struct dentry *parent, const char *name)
 
 	read_unlock_restore(&bucket->lock, flags);
 	return dentry;
-}
-
-static void __dcache_remove(struct dcache_bucket *bucket,
-			struct dcache_node *node)
-{
-	(void) bucket;
-	list_del(&node->ll);
 }
 
 void dcache_delete(struct dentry *dentry)
