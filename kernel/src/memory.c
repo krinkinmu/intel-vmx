@@ -80,9 +80,11 @@ static void __page_alloc_zone_setup(uintptr_t zbegin, uintptr_t zend,
 	const size_t size = sizeof(struct page_alloc_zone)
 				+ sizeof(struct page) * pages;
 	struct page_alloc_zone *zone = (struct page_alloc_zone *)
-				balloc_alloc(size, 0x1000, UINTPTR_MAX);
+				__balloc_alloc(size, PAGE_SIZE,
+					/* from = */BOOTSTRAP_BEGIN,
+					/* to = */BOOTSTRAP_END);
 
-	BUG_ON((uintptr_t)zone == UINTPTR_MAX);
+	BUG_ON((uintptr_t)zone == BOOTSTRAP_END);
 
 	printf("page alloc zone [0x%llx; 0x%llx]\n", (unsigned long long)begin,
 				(unsigned long long)end);

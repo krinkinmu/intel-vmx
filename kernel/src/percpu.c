@@ -34,10 +34,12 @@ void percpu_setup(void)
 	const size_t percpu_size = percpu_phys_end - percpu_phys_begin;
 
 	for (int i = 0; i != local_apics; ++i) {
-		const uintptr_t addr = balloc_alloc(
+		const uintptr_t addr = __balloc_alloc(
 					percpu_size + sizeof(uint64_t),
-					/* from = */0, /* to = */UINTPTR_MAX);
-		BUG_ON(addr == UINTPTR_MAX);
+					PAGE_SIZE,
+					/* from = */BOOTSTRAP_BEGIN,
+					/* to = */BOOTSTRAP_END);
+		BUG_ON(addr == BOOTSTRAP_END);
 
 		uint64_t * const baseptr = (uint64_t *)(addr + percpu_size);
 

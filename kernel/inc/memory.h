@@ -10,6 +10,9 @@
 #define PAGE_MASK	(PAGE_SIZE - 1)
 #define MAX_ORDER	18
 
+#define BOOTSTRAP_BEGIN	(1ull << 20)	
+#define BOOTSTRAP_END	(1ull << 39)
+
 #define UNMAPPED_MEMORY	UINTPTR_MAX
 #define HIGH_MEMORY	(1ull << 47)
 #define NORMAL_MEMORY	(1ull << 32)
