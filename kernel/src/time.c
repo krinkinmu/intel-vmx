@@ -1,10 +1,10 @@
-#include <time.h>
-#include <acpi.h>
-#include <debug.h>
+#include <scheduler.h>
 #include <stdint.h>
 #include <limits.h>
-#include <balloc.h>
-#include <scheduler.h>
+#include <alloc.h>
+#include <debug.h>
+#include <time.h>
+#include <acpi.h>
 #include <apic.h>
 #include <ints.h>
 #include <cpu.h>
@@ -86,17 +86,10 @@ static void hpet_write64(uintptr_t addr, int reg, unsigned long long val)
 
 static void hpet_realloc(int new_size)
 {
-	struct hpet_block *old_hpet_block = hpet_block;
-	const size_t size = sizeof(*old_hpet_block) * new_size;
-	const size_t old_size = sizeof(*old_hpet_block) * hpet_blocks;
+	const size_t size = sizeof(*hpet_block) * new_size;
 
-	hpet_block = (struct hpet_block *)balloc_alloc(size,
-				/* from = */0x1000, /* to = */UINTPTR_MAX);
-	BUG_ON((uintptr_t)hpet_block == UINTPTR_MAX);
-
-	memcpy(hpet_block, old_hpet_block, old_size < size ? old_size : size);
-	balloc_free((uintptr_t)old_hpet_block,
-				(uintptr_t)old_hpet_block + old_size);
+	hpet_block = mem_realloc(hpet_block, size);
+	BUG_ON(!hpet_block);
 }
 
 static unsigned long long hpet_overflow(int width, unsigned long long period)
