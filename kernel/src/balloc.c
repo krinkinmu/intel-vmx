@@ -1,4 +1,5 @@
 #include <balloc.h>
+#include <memory.h>
 #include <debug.h>
 
 
@@ -206,6 +207,7 @@ static void balloc_parse_mmap(const struct mboot_info *info)
 	const uintptr_t kend = (uintptr_t)kernel_phys_end;
 
 	__balloc_add_range(&memory_map, kbegin, kend);
+	__balloc_add_range(&memory_map, 0, PAGE_SIZE);
 
 	ptr = begin;
 	while (ptr + sizeof(struct mboot_mmap_entry) <= end) {
@@ -220,6 +222,7 @@ static void balloc_parse_mmap(const struct mboot_info *info)
 	}
 
 	__balloc_remove_range(&free_ranges, kbegin, kend);
+	__balloc_remove_range(&free_ranges, 0, PAGE_SIZE);
 }
 
 static void __balloc_dump_ranges(const struct rb_tree *tree)

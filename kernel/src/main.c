@@ -104,7 +104,9 @@ void main(const struct mboot_info *info)
 	ints_early_setup();
 	acpi_early_setup();
 
+	apic_setup();
 	balloc_setup(info);
+	percpu_setup();
 	page_alloc_setup();
 	mem_alloc_setup();
 	hp_setup();
@@ -112,7 +114,6 @@ void main(const struct mboot_info *info)
 	threads_setup();
 
 	paging_setup();
-	apic_setup();
 	time_setup();
 	scheduler_setup();
 	smp_setup();

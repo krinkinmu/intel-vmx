@@ -10,5 +10,6 @@
 #define __percpu	_Thread_local
 
 void percpu_cpu_setup(void);
+void percpu_setup(void);
 
 #endif /*__PER_CPU_H__*/
