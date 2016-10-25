@@ -1,21 +1,15 @@
 #ifndef __DENTRY_CACHE_H__
 #define __DENTRY_CACHE_H__
 
-#include <stddef.h>
-#include <list.h>
+#include <hashtable.h>
 
 #define DCACHE_INLINE_LEN	88
 
-struct dcache_node {
-	struct list_head ll;
-	uint64_t key;
-};
-
 struct dentry {
-	struct dcache_node node;
+	struct hash_node node;
 	struct dentry *parent;
 	uint64_t hash;
-	char *name;
+	const char *name;
 	char name_buf[DCACHE_INLINE_LEN];
 };
 
