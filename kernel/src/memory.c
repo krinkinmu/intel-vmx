@@ -3,9 +3,9 @@
 #include <balloc.h>
 #include <debug.h>
 
-
-#define PAGE_ORDER_MASK	0xfful
-#define PAGE_FREE_MASK	(1ul << 8)
+#define PAGE_FREE_OFFS	8
+#define PAGE_FREE_MASK	(1ul << PAGE_FREE_OFFS)
+#define PAGE_ORDER_MASK	(PAGE_FREE_MASK - 1)
 #define PAGE_USER_OFFS	16
 #define MEMORY_RANGES	(sizeof(memory_range)/sizeof(memory_range[0]))
 
@@ -31,6 +31,9 @@ static inline int page_order(const struct page *page)
 
 static inline void page_set_order(struct page *page, int order)
 {
+	BUG_ON(order > (int)PAGE_ORDER_MASK);
+	BUG_ON(order < 0);
+
 	page->flags = (page->flags & ~PAGE_ORDER_MASK) | order;
 }
 
@@ -195,14 +198,13 @@ static void __page_alloc_zone_free(uintptr_t zbegin, uintptr_t zend)
 	BUG_ON(end <= zone->begin || end > zone->end);
 
 	for (uintptr_t page = begin; page != end;) {
-		int order = 0;
+		int order;
 
-		while (order < MAX_ORDER) {
+		for (order = 0; order < MAX_ORDER; ++order) {
 			if (page & (1ull << order))
 				break;
 			if (page + (1ull << (order + 1)) > end)
 				break;
-			++order;
 		}
 
 		const size_t pages = (size_t)1 << order;
@@ -296,17 +298,18 @@ static struct page *__page_alloc_zone(struct page_alloc_zone *zone, int order)
 				struct page, ll);
 	const uintptr_t idx = zone->begin + (page - zone->pages);
 
+	page_set_busy(page);
 	list_del(&page->ll);
+
 	while (current != order) {
 		const uintptr_t bidx = idx ^ (1ull << --current);
 		struct page *buddy = zone->pages + (bidx - zone->begin);
 
 		list_add(&buddy->ll, &zone->order[current]);
+
 		page_set_order(buddy, current);
 		page_set_free(buddy);
 	}
-
-	page_set_busy(page);
 
 	return page;
 }
@@ -364,9 +367,9 @@ uintptr_t page_alloc(int order, unsigned long flags)
 		if (!page)
 			continue;
 
-		const uintptr_t index = page - zone->pages;
+		const uintptr_t index = zone->begin + (page - zone->pages);
 
-		return (zone->begin + index) << PAGE_SHIFT;
+		return index << PAGE_SHIFT;
 	}
 
 	return 0;
@@ -398,6 +401,7 @@ static void __page_free_zone(struct page_alloc_zone *zone, struct page *page,
 	}
 
 	list_add(&page->ll, &zone->order[order]);
+
 	page_set_order(page, order);
 	page_set_free(page);
 }
