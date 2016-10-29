@@ -2,6 +2,7 @@
 #include <spinlock.h>
 #include <memory.h>
 #include <string.h>
+#include <debug.h>
 #include <alloc.h>
 #include <rcu.h>
 
@@ -102,6 +103,7 @@ static void hash_bucket_setup(struct hash_bucket *bucket)
 {
 	rwlock_init(&bucket->lock);
 	list_init(&bucket->guard.ll);
+	bucket->guard.key = 0;
 }
 
 static int hash_bucket_uninitialized(struct hash_bucket *bucket)
@@ -141,7 +143,9 @@ static void __hash_bucket_insert(struct hash_bucket *bucket,
 	struct list_head *head = &bucket->guard.ll;
 	struct list_head *ptr = head->next;
 
-	while (ptr != head) {
+	BUG_ON(minkey >= new->key);
+
+	while (1) {
 		struct hash_node *node = CONTAINER_OF(ptr,
 					struct hash_node, ll);
 
@@ -153,6 +157,20 @@ static void __hash_bucket_insert(struct hash_bucket *bucket,
 	}
 }
 
+static size_t hash_parent(size_t bucket)
+{
+	size_t mask = bucket;
+
+	mask |= mask >> 1;
+	mask |= mask >> 2;
+	mask |= mask >> 4;
+	mask |= mask >> 8;
+	mask |= mask >> 16;
+	mask |= mask >> 32;
+
+	return bucket & (mask >> 1);
+}
+
 static struct hash_bucket *hash_bucket(struct hash_table *table, uint64_t hash)
 {
 	struct hash_table_impl *impl;
@@ -161,6 +179,7 @@ static struct hash_bucket *hash_bucket(struct hash_table *table, uint64_t hash)
 
 	rcu_read_lock();
 	impl = atomic_load_explicit(&table->table, memory_order_consume);
+	BUG_ON(!impl);
 	bucket_no = hash & (impl->buckets - 1);
 	bucket = __hash_bucket(impl, bucket_no);
 	rcu_read_unlock();
@@ -171,7 +190,7 @@ static struct hash_bucket *hash_bucket(struct hash_table *table, uint64_t hash)
 	if (!bucket_no || !hash_bucket_uninitialized(bucket))
 		return bucket;
 
-	const size_t parent_no = bucket_no / 2;
+	const size_t parent_no = hash_parent(bucket_no);
 	struct hash_bucket *parent = hash_bucket(table, parent_no);
 
 	if (!parent)
@@ -206,7 +225,7 @@ static void __hash_grow(struct hash_table *table)
 	const size_t oldbuckets = old ? old->buckets : 0;
 	const size_t newbuckets = old ? oldbuckets * 2 : 4096;
 
-	if (old->buckets * HASH_LOAD >= entries)
+	if (oldbuckets * HASH_LOAD > entries)
 		return;
 
 	const size_t newsize = sizeof(*old) +
@@ -219,8 +238,10 @@ static void __hash_grow(struct hash_table *table)
 	if (!new)
 		return;
 
+	BUG_ON(!new);
 	memset(new, 0, newsize);
 	memcpy(new, old, oldsize);
+	new->buckets = newbuckets;
 	atomic_store_explicit(&table->table, new, memory_order_release);
 
 	if (old)
@@ -253,6 +274,7 @@ void hash_setup(struct hash_table *table)
 	atomic_store_explicit(&table->entries, 0, memory_order_relaxed);
 	atomic_flag_clear_explicit(&table->resizing, memory_order_relaxed);
 	__hash_grow(table);
+	BUG_ON(!atomic_load_explicit(&table->table, memory_order_relaxed));
 }
 
 static void __hash_release(struct rcu_callback *rcu)
@@ -290,7 +312,9 @@ struct hash_node *hash_insert(struct hash_table *table, uint64_t hash,
 	struct list_head *head = &bucket->guard.ll;
 	struct list_head *ptr = head->next;
 
-	while (ptr != head) {
+	BUG_ON(minkey >= new->key);
+
+	while (1) {
 		struct hash_node *node = CONTAINER_OF(ptr,
 					struct hash_node, ll);
 
@@ -307,6 +331,7 @@ struct hash_node *hash_insert(struct hash_table *table, uint64_t hash,
 		}
 		ptr = ptr->next;
 	}
+
 	write_unlock_restore(&bucket->lock, flags);
 	hash_grow(table);
 	return new;
