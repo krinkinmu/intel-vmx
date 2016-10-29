@@ -1,4 +1,5 @@
 #include <scheduler.h>
+#include <hashtable.h>
 #include <uart8250.h>
 #include <smpboot.h>
 #include <balloc.h>
@@ -37,6 +38,68 @@ static void gdb_hang(void)
 #endif
 }
 
+struct ht_int {
+	struct hash_node hn;
+	int value;
+};
+
+static int ht_int_equal(const struct hash_node *node, const void *key)
+{
+	const struct ht_int *l = (const struct ht_int *)node;
+	const struct ht_int *r = key;
+
+	return l->value == r->value;
+}
+
+static void __test_hashtable(void *unused)
+{
+	struct mem_cache cache;
+	struct hash_table ht;
+	int i, j;
+
+	(void) unused;
+
+	hash_setup(&ht);
+	mem_cache_setup(&cache, sizeof(struct ht_int), sizeof(struct ht_int));
+
+	for (i = 0; i != 1000000; ++i) {
+		struct ht_int *node = mem_cache_alloc(&cache, PA_ANY);
+
+		if (!node)
+			break;
+		node->value = i;
+		BUG_ON(hash_insert(&ht, (uint64_t)i, &node->hn,
+					&ht_int_equal) != &node->hn);
+	}
+
+	for (j = 0; j != i; ++j) {
+		struct hash_node *node;
+		struct ht_int key;
+
+		key.value = j;
+
+		BUG_ON(!(node = hash_lookup(&ht, (uint64_t)j, &key,
+					&ht_int_equal)));
+		BUG_ON(hash_remove(&ht, (uint64_t)j, &key,
+					&ht_int_equal) != node);
+		mem_cache_free(&cache, (struct ht_int *)node);
+	}
+
+	mem_cache_release(&cache);
+	hash_release(&ht);
+}
+
+static void test_hashtable(void)
+{
+	struct thread *thread = thread_create(&__test_hashtable, 0);
+
+	printf("start hashtable test\n");
+	thread_activate(thread);
+	thread_join(thread);
+	thread_destroy(thread);
+	printf("finished hashtable test\n");
+}
+
 struct lf_int {
 	struct lf_list_head ll;
 	int value;
@@ -64,7 +127,7 @@ static void __test_lflist(void *unused)
 	lf_list_init(&lst);
 	mem_cache_setup(&cache, sizeof(struct lf_int), sizeof(struct lf_int));
 
-	for (i = 0; i != 100000; ++i) {
+	for (i = 0; i != 10000; ++i) {
 		struct lf_int *node = mem_cache_alloc(&cache, PA_ANY);
 
 		if (!node)
@@ -122,6 +185,7 @@ void main(const struct mboot_info *info)
 
 	//vmx_setup();
 
+	test_hashtable();
 	test_lflist();
 
 	while (1);
