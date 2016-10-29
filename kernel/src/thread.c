@@ -131,7 +131,7 @@ void thread_join(struct thread *thread)
 void thread_destroy(struct thread *thread)
 {
 	mem_free(thread->fpu_state);
-	page_free(thread->stack_addr, PA_ANY);
+	page_free(thread->stack_addr, thread->stack_order);
 	thread_free(thread);
 }
 
