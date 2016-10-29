@@ -25,7 +25,11 @@ static void __list_del(struct list_head *prev, struct list_head *next)
 }
 
 void list_del(struct list_head *entry)
-{ __list_del(entry->prev, entry->next); }
+{
+	__list_del(entry->prev, entry->next);
+	entry->next = 0;
+	entry->prev = 0;
+}
 
 static void __list_splice(struct list_head *list, struct list_head *prev,
 			struct list_head *next)
