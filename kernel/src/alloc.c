@@ -373,9 +373,12 @@ void mem_free(void *ptr)
 		return;
 	}
 
+	const int order = page->u.order;
+	const uintptr_t mask = (1ull << (order + PAGE_SHIFT)) - 1;
+
 	page_clear_bit(page, PAGE_CACHE_BIT);
 	page->u.order = 0;
-	__page_free(page, page->u.order);
+	page_free((~mask & (uintptr_t)ptr), order);
 }
 
 void *mem_realloc(void *ptr, size_t size)
