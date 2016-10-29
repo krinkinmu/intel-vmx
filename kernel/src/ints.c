@@ -57,6 +57,16 @@ static void exception_handle(struct frame *frame)
 		__backtrace(frame->rbp, begin, end);
 		printf("Backtrace End.\n");
 	}
+	printf("Register State:\n");
+	printf("RIP 0x%lx, RSP 0x%lx, RBP 0x%lx,\n"
+		"R8 0x%lx, R9 0x%lx, R10 0x%lx, R11 0x%lx,\n"
+		"R12 0x%lx, R13 0x%lx, R14 0x%lx, R15 0x%lx,\n"
+		"RAX 0x%lx, RBX 0x%lx, RCX 0x%lx, RDX 0x%lx,\n"
+		"RSI 0x%lx, RDI 0x%lx\n", frame->rip, frame->rsp, frame->rbp,
+		frame->r8, frame->r9, frame->r10, frame->r11,
+		frame->r12, frame->r13, frame->r14, frame->r15,
+		frame->rax, frame->rbx, frame->rcx, frame->rdx,
+		frame->rsi, frame->rdi);
 	BUG("Unhandled exception %d err %lu, at 0x%lx",
 				(int)frame->num, (unsigned long)frame->err,
 				(unsigned long)frame->rip);
