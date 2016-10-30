@@ -9,7 +9,7 @@
 #include <cpu.h>
 #include <rcu.h>
 
-#define SCHEDULER_SLICE	100
+#define SCHEDULER_SLICE	10
 
 struct scheduler_queue {
 	struct list_head ll;
