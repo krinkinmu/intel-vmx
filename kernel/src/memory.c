@@ -380,6 +380,8 @@ static void __page_free_zone(struct page_alloc_zone *zone, struct page *page,
 {
 	uintptr_t idx = zone->begin + (page - zone->pages);
 
+	BUG_ON(idx & ((1ull << order) - 1));
+
 	while (order < MAX_ORDER) {
 		const uintptr_t bidx = idx ^ (1ull << order);
 
