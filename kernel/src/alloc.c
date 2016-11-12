@@ -327,6 +327,7 @@ static int mem_order_calculate(size_t size)
 	int order;
 
 	for (order = 0; order != MAX_ORDER + 1; ++order)
+
 		if (((size_t)1 << (order + PAGE_SHIFT)) >= size)
 			break;
 	return order;

@@ -69,7 +69,7 @@ static void rb_rotate_right(struct rb_node *x, struct rb_tree *tree)
 	rb_set_parent(x, l);
 }
 
-struct rb_node *rb_rightmost(const struct rb_node *node)
+static struct rb_node *__rb_rightmost(const struct rb_node *node)
 {
 	if (!node)
 		return 0;
@@ -79,7 +79,7 @@ struct rb_node *rb_rightmost(const struct rb_node *node)
 	return (struct rb_node *)node;
 }
 
-struct rb_node *rb_leftmost(const struct rb_node *node)
+static struct rb_node *__rb_leftmost(const struct rb_node *node)
 {
 	if (!node)
 		return 0;
@@ -89,13 +89,23 @@ struct rb_node *rb_leftmost(const struct rb_node *node)
 	return (struct rb_node *)node;
 }
 
+struct rb_node *rb_leftmost(const struct rb_tree *tree)
+{
+	return __rb_leftmost(tree->root);
+}
+
+struct rb_node *rb_rightmost(const struct rb_tree *tree)
+{
+	return __rb_rightmost(tree->root);
+}
+
 struct rb_node *rb_next(const struct rb_node *node)
 {
 	if (!node)
 		return 0;
 
 	if (node->right)
-		return rb_leftmost(node->right);
+		return __rb_leftmost(node->right);
 
 	const struct rb_node *p = rb_parent(node);
 
@@ -113,7 +123,7 @@ struct rb_node *rb_prev(const struct rb_node *node)
 		return 0;
 
 	if (node->left)
-		return rb_rightmost(node->left);
+		return __rb_rightmost(node->left);
 
 	const struct rb_node *p = rb_parent(node);
 

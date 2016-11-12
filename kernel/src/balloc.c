@@ -227,8 +227,7 @@ static void balloc_parse_mmap(const struct mboot_info *info)
 
 static void __balloc_dump_ranges(const struct rb_tree *tree)
 {
-	const struct memory_node *node =
-				RB2MEMORY_NODE(rb_leftmost(tree->root));
+	const struct memory_node *node = RB2MEMORY_NODE(rb_leftmost(tree));
 
 	while (node) {
 		printf("memory range: 0x%llx-0x%llx\n",

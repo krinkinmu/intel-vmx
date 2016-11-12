@@ -320,7 +320,7 @@ static void __pt_unmap(struct page_table *pt, uintptr_t begin, uintptr_t end)
 	struct pt_range *next = pt_find_next_range(pt, end);
 
 	if (!prev) {
-		struct rb_node *node = rb_leftmost(pt->ranges.root);
+		struct rb_node *node = rb_leftmost(&pt->ranges);
 
 		begin = 0;
 		prev = node ? TREE_ENTRY(node, struct pt_range, rb) : 0;
@@ -371,7 +371,7 @@ int pt_setup(struct page_table *pt)
 
 void pt_release(struct page_table *pt)
 {
-	struct rb_node *node = rb_leftmost(pt->ranges.root);
+	struct rb_node *node = rb_leftmost(&pt->ranges);
 
 	while (node) {
 		struct pt_range *range = TREE_ENTRY(node, struct pt_range, rb);

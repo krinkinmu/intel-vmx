@@ -252,7 +252,7 @@ static void page_alloc_zone_dump(const struct page_alloc_zone *zone)
 
 void page_alloc_setup(void)
 {
-	struct rb_node *ptr = rb_leftmost(memory_map.root);
+	struct rb_node *ptr = rb_leftmost(&memory_map);
 
 	list_init(&page_alloc_zones);
 
@@ -263,7 +263,7 @@ void page_alloc_setup(void)
 		ptr = rb_next(ptr);
 	}
 
-	ptr = rb_leftmost(free_ranges.root);
+	ptr = rb_leftmost(&free_ranges);
 
 	while (ptr) {
 		const struct memory_node *node = RB2MEMORY_NODE(ptr);
