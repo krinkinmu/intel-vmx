@@ -63,8 +63,18 @@ void threads_cpu_setup(void)
 	current = thread;
 }
 
-void thread_entry(thread_fptr_t fptr, void *arg)
+static void place_thread(struct thread *next)
 {
+	struct thread *prev = thread_current();
+
+	current = next;
+	if (thread_get_state(prev) == THREAD_FINISHING)
+		thread_set_state(prev, THREAD_FINISHED);
+}
+
+void thread_entry(struct thread *thread, thread_fptr_t fptr, void *arg)
+{
+	place_thread(thread);
 	local_int_enable();
 	fptr(arg);
 
@@ -106,8 +116,9 @@ struct thread *__thread_create(thread_fptr_t fptr, void *arg, int stack_order)
 	thread_set_state(thread, THREAD_BLOCKED);
 
 	frame = (struct thread_switch_frame *)thread->stack_ptr;
-	frame->r12 = (uintptr_t)fptr;
-	frame->r13 = (uintptr_t)arg;
+	frame->r12 = (uintptr_t)thread;
+	frame->r13 = (uintptr_t)fptr;
+	frame->r14 = (uintptr_t)arg;
 	frame->rbp = 0;
 	frame->rflags = RFLAGS_RESERVED;
 	frame->rip = (uintptr_t)__thread_entry;
@@ -164,10 +175,9 @@ void thread_switch_to(struct thread *next)
 	struct thread *prev = thread_current();
 
 	fpu_state_save(prev->fpu_state);
-	current = next;
 	__thread_switch(&prev->stack_ptr, next->stack_ptr);
-	current = prev;
-	fpu_state_restore(next->fpu_state);
+	fpu_state_restore(prev->fpu_state);
+	place_thread(prev);
 
 	local_int_restore(flags);
 }

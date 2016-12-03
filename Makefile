@@ -11,10 +11,10 @@ OPT := $(if $(DEBUG),,-O2)
 
 KERNEL_SRC		:= kernel/src
 KERNEL_INC		:= kernel/inc
-KERNEL_C		:= $(wildcard $(KERNEL_SRC)/*.c)
+KERNEL_C		:= $(shell find $(KERNEL_SRC) -name *.c)
 KERNEL_C_OBJ		:= $(KERNEL_C:.c=.o)
 KERNEL_C_DEP		:= $(KERNEL_C:.c=.d)
-KERNEL_A		:= $(wildcard $(KERNEL_SRC)/*.S)
+KERNEL_A		:= $(shell find $(KERNEL_SRC) -name *.S)
 KERNEL_A_OBJ		:= $(KERNEL_A:.S=.o)
 KERNEL_A_DEP		:= $(KERNEL_A:.S=.d)
 KERNEL_OBJ		:= $(KERNEL_C_OBJ) $(KERNEL_A_OBJ)

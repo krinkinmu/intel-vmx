@@ -119,11 +119,8 @@ static void scheduler_preempt_thread(struct thread *prev)
 {
 	const int state = thread_get_state(prev);
 
-	if (prev == cpu_idle || state != THREAD_ACTIVE) {
-		if (state == THREAD_FINISHING)
-			thread_set_state(prev, THREAD_FINISHED);
+	if (prev == cpu_idle || state != THREAD_ACTIVE)
 		return;
-	}
 
 	const unsigned long flags = spin_lock_save(&cpu_queue->lock);
 

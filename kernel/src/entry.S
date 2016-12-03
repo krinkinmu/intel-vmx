@@ -6,6 +6,7 @@
 __thread_entry:
 	movq %r12, %rdi
 	movq %r13, %rsi
+	movq %r14, %rdx
 	call thread_entry
 1:	jmp 1b
 
