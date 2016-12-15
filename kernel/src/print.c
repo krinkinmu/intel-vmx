@@ -231,7 +231,7 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list args)
 	const int rc = __vprintf(&ctx.ctx, fmt, args);
 
 	if (rc >= 0)
-		buf[rc < (int)size ? rc - 1 : (int)size - 1] = '\0';
+		buf[rc < (int)size ? rc : (int)size - 1] = '\0';
 	return rc;
 }
 
